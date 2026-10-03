@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>经济学人 · 选篇</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html{font-size:16px}
+:root{--navy:#173b78;--coral:#ff655d;--sky:#45c7e9;--sun:#ffd43b;--leaf:#49bd68;--cream:#fff4d8;--white:#fffaf0;--ink:#17345f;--muted:#6d6a61}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;background:var(--cream);color:var(--ink);line-height:1.6}
+
+/* ===== TOP BAR ===== */
+.top-bar{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 24px;background:var(--navy);position:sticky;top:0;z-index:100;box-shadow:0 4px 0 rgba(23,59,120,.35)}
+.title-area{display:flex;align-items:baseline;gap:12px;flex-shrink:0}
+.page-title{font-size:18px;font-weight:800;color:var(--cream);white-space:nowrap}
+.page-meta{font-size:12px;color:rgba(255,244,216,.75);white-space:nowrap}
+.pick-box{flex:1;min-width:220px;display:flex;align-items:center;gap:8px}
+.pick-label{font-size:12px;color:rgba(255,244,216,.75);white-space:nowrap}
+#pick-path{flex:1;min-width:120px;background:rgba(255,250,240,.14);color:var(--cream);border:1.5px dashed rgba(255,244,216,.55);border-radius:9px 12px 8px 11px;padding:6px 12px;font-size:12px;font-family:ui-monospace,Menlo,monospace;outline:none;cursor:text}
+#pick-path::placeholder{color:rgba(255,244,216,.4)}
+
+/* ===== MAIN ===== */
+main{padding:24px;max-width:980px;margin:0 auto}
+.issue{margin-bottom:22px;background:var(--white);border:2.5px solid var(--navy);border-radius:20px 26px 18px 23px;box-shadow:7px 8px 0 rgba(23,59,120,.8);overflow:hidden}
+.issue>summary{list-style:none;display:flex;align-items:center;gap:12px;padding:15px 22px;background:var(--white);cursor:pointer;font-weight:800;font-size:16px;color:var(--ink);user-select:none}
+.issue>summary::-webkit-details-marker{display:none}
+.issue-arrow{transition:transform .18s;font-size:13px;color:var(--navy)}
+.issue[open]>summary .issue-arrow{transform:rotate(90deg)}
+.issue-date{font-family:Georgia,serif}
+.issue-stats{font-size:12.5px;color:var(--muted);font-weight:600}
+.issue-skipped{font-size:12px;color:#b98900;background:#fff6d9;border:1.5px dashed #e6c14c;border-radius:8px;padding:1px 9px}
+.issue-body{padding:4px 18px 18px}
+
+/* ===== SECTION CARD ===== */
+.section-card{margin-top:14px;border:2px solid var(--navy);border-radius:14px 18px 16px 20px;overflow:hidden;background:var(--white)}
+.section-head{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--sun)}
+.section-head h2{font-size:14.5px;font-weight:700;color:#344054;letter-spacing:.3px}
+.cnt{background:var(--navy);color:var(--cream);font-size:11.5px;font-weight:800;padding:2px 9px;border-radius:8px 11px 7px 10px}
+.section-body{padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+
+/* ===== ARTICLE ROW ===== */
+.row{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--white);border:2px dashed rgba(23,59,120,.3);border-radius:10px 13px 9px 12px;cursor:pointer;transition:all .13s}
+.row:hover{border-style:solid;border-color:var(--navy);transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--navy);background:#fffdf6}
+.row.picked{background:#d6ecff;border-style:solid;border-color:var(--navy)}
+.row:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+.ord{width:34px;height:34px;background:#e0e7ff;color:#4263eb;border-radius:9px 11px 8px 10px;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.row-main{flex:1;min-width:0}
+.row-title{font-size:15px;font-weight:700;color:#1a1a2e;font-family:Georgia,'Times New Roman',serif;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fly-chip{font-size:10.5px;font-weight:700;color:#0b7285;background:var(--sky);padding:1px 8px;border-radius:8px 10px 7px 9px;white-space:nowrap;font-family:-apple-system,sans-serif;transform:rotate(-1.5deg)}
+.row-rubric{font-size:12.5px;color:var(--muted);font-style:italic;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row-excerpt{font-size:12px;color:#8b95a5;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.words-badge{font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:9px 12px 8px 11px;border:2px solid var(--navy);white-space:nowrap;flex-shrink:0}
+.w-s{background:var(--leaf);color:#fff}
+.w-m{background:var(--sky);color:#0b3a47}
+.w-l{background:var(--sun);color:#5c4700}
+.w-xl{background:var(--coral);color:#fff}
+
+/* ===== FOOTER / TOAST ===== */
+footer{max-width:980px;margin:0 auto;padding:0 24px 30px;font-size:12.5px;color:var(--muted);text-align:center;line-height:1.8}
+#toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(20px);background:var(--navy);color:var(--cream);font-size:13.5px;font-weight:700;padding:11px 22px;border-radius:11px 14px 10px 13px;box-shadow:4px 5px 0 rgba(23,59,120,.45);opacity:0;pointer-events:none;transition:all .22s;z-index:200;max-width:86vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#copy-fallback{position:fixed;left:-9999px;top:0}
+
+@media (max-width:640px){
+  main{padding:14px}
+  .top-bar{padding:10px 14px}
+  .pick-box{order:3;min-width:100%}
+  .issue-body{padding:2px 10px 12px}
+  .row{gap:9px;padding:9px 10px}
+  .row-rubric,.row-excerpt{display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="top-bar">
+  <div class="title-area">
+    <span class="page-title">📰 经济学人 · 选篇</span>
+    <span class="page-meta" id="page-meta"></span>
+  </div>
+  <div class="pick-box">
+    <label class="pick-label" for="pick-path">选中路径</label>
+    <input id="pick-path" readonly placeholder="点击下方任意文章后，这里显示它的 md 路径">
+  </div>
+</header>
+
+<main id="main"></main>
+
+<footer>
+  点任意文章复制其 md 路径 → 回到对话里说「读这篇文章」<br>
+  仅供个人英语学习使用，请勿传播
+</footer>
+
+<div id="toast" role="status"></div>
+<textarea id="copy-fallback" aria-hidden="true"></textarea>
+
+<script>
+const CATALOG_DATA = {{CATALOG_DATA_JSON}};
+
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function fmtWords(n){
+  return n >= 10000 ? (n/1000).toFixed(1) + 'k' : String(n);
+}
+function badgeCls(w){
+  if (w < 300) return 'w-s';
+  if (w < 700) return 'w-m';
+  if (w < 1200) return 'w-l';
+  return 'w-xl';
+}
+
+/* 三级复制降级：file:// 下 navigator.clipboard 常被拒 */
+function copyText(text, onFail){
+  if (navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(
+      function(){ onFail(false); },
+      function(){ legacyCopy(text, onFail); }
+    );
+  } else {
+    legacyCopy(text, onFail);
+  }
+}
+function legacyCopy(text, onFail){
+  var ta = document.getElementById('copy-fallback');
+  ta.value = text;
+  ta.focus(); ta.select();
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch(e){ ok = false; }
+  ta.blur();
+  onFail(!ok);
+}
+
+var toastTimer = null;
+function toast(msg){
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2500);
+}
+
+function pickRow(row, path){
+  document.querySelectorAll('.row.picked').forEach(function(r){ r.classList.remove('picked'); });
+  row.classList.add('picked');
+  var box = document.getElementById('pick-path');
+  box.value = path;
+  copyText(path, function(failed){
+    if (failed){
+      box.focus(); box.select();
+      toast('自动复制失败，路径已选中——按 ⌘C 复制');
+    } else {
+      toast('已复制，去对话里说：读这篇文章');
+    }
+  });
+}
+
+function build(){
+  var d = CATALOG_DATA;
+  document.getElementById('page-meta').textContent =
+    d.issues.length + ' 期 · ' + fmtWords(d.totalArticles) + ' 篇 · 生成于 ' + d.generated;
+
+  var main = document.getElementById('main');
+  d.issues.forEach(function(is, i){
+    var det = document.createElement('details');
+    det.className = 'issue';
+    if (i === 0) det.open = true;
+
+    var sum = document.createElement('summary');
+    var skip = is.skipped ? ' <span class="issue-skipped">跳过 ' + is.skipped + ' 短文</span>' : '';
+    sum.innerHTML = '<span class="issue-arrow">▶</span>' +
+      '<span class="issue-date">' + esc(is.issue) + '</span>' +
+      '<span class="issue-stats">' + is.articles + ' 篇 · ' + fmtWords(is.words) + ' 词</span>' + skip;
+    det.appendChild(sum);
+
+    var body = document.createElement('div');
+    body.className = 'issue-body';
+    is.sections.forEach(function(sec){
+      var card = document.createElement('div');
+      card.className = 'section-card';
+      var head = document.createElement('div');
+      head.className = 'section-head';
+      head.innerHTML = '<h2>' + esc(sec.name) + '</h2><span class="cnt">' + sec.articles.length + '</span>';
+      card.appendChild(head);
+
+      var sb = document.createElement('div');
+      sb.className = 'section-body';
+      sec.articles.forEach(function(a){
+        var row = document.createElement('div');
+        row.className = 'row';
+        row.setAttribute('role', 'button');
+        row.setAttribute('tabindex', '0');
+        row.dataset.path = a.path;
+        row.innerHTML =
+          '<span class="ord">' + a.order + '</span>' +
+          '<div class="row-main">' +
+            '<div class="row-title">' + esc(a.title) +
+              (a.fly ? ' <span class="fly-chip">' + esc(a.fly) + '</span>' : '') +
+            '</div>' +
+            (a.rubric ? '<div class="row-rubric">' + esc(a.rubric) + '</div>' : '') +
+            (a.excerpt ? '<div class="row-excerpt">' + esc(a.excerpt) + '</div>' : '') +
+          '</div>' +
+          '<span class="words-badge ' + badgeCls(a.words) + '">' + a.words + ' 词</span>';
+        row.addEventListener('click', function(){ pickRow(row, a.path); });
+        row.addEventListener('keydown', function(e){
+          if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); pickRow(row, a.path); }
+        });
+        sb.appendChild(row);
+      });
+      card.appendChild(sb);
+      body.appendChild(card);
+    });
+    det.appendChild(body);
+    main.appendChild(det);
+  });
+}
+build();
+</script>
+</body>
+</html>
