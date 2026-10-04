@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__LESSON_TITLE__ · 两轮打磨练习</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.75 -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; color: #1f2933; background: #f7f8fa; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 36px 24px 90px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #5f6b7a; font-size: 13px; margin-bottom: 20px; }
+  .flowbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+  .dot { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid #d4dbe4; background: #fff; color: #5f6b7a; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+  .dot.cur { border-color: #2456d6; color: #2456d6; box-shadow: 0 0 0 3px rgba(36,86,214,.12); }
+  .dot.done { background: #e6f4ea; border-color: #b5dfc4; color: #147d43; }
+  .dot.done::after { content: "✓"; margin-left: 3px; font-size: 10px; }
+  .flowmeta { font-size: 12.5px; color: #5f6b7a; margin-left: 6px; }
+  .card { background: #fff; border: 1px solid #e4e8ee; border-radius: 12px; padding: 22px 24px; margin-bottom: 16px; }
+  .qtitle { font-size: 19px; font-weight: 700; margin: 0 0 2px; }
+  .qtag { display: inline-block; padding: 1px 10px; border-radius: 99px; font-size: 12px; background: #eef3ff; color: #2456d6; font-weight: 600; margin-bottom: 10px; }
+  .hints { background: #f0f7ff; border: 1px solid #d7e5fb; border-radius: 10px; padding: 10px 16px; font-size: 13.5px; margin: 10px 0 0; }
+  .hints b { color: #2456d6; }
+  .step-label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #37424e; margin: 22px 0 8px; }
+  .step-label .n { width: 20px; height: 20px; border-radius: 50%; background: #2456d6; color: #fff; font-size: 11.5px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  textarea { width: 100%; min-height: 110px; padding: 12px 14px; border: 1px solid #d4dbe4; border-radius: 10px; font: 14.5px/1.7 -apple-system, "PingFang SC", sans-serif; resize: vertical; background: #fcfdfe; }
+  textarea:focus { outline: none; border-color: #2456d6; box-shadow: 0 0 0 3px rgba(36,86,214,.1); }
+  .tbar { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+  .wc { font-size: 12.5px; color: #8a94a3; }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid #d4dbe4; background: #fff; padding: 7px 16px; font-size: 13.5px; transition: all .15s; }
+  button:hover { border-color: #2456d6; color: #2456d6; }
+  button.primary { background: #2456d6; border-color: #2456d6; color: #fff; font-weight: 600; }
+  button.primary:hover { background: #1c46b8; color: #fff; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.rec-live { background: #b3261e; border-color: #b3261e; color: #fff; }
+  button.listening { background: #b3261e; border-color: #b3261e; color: #fff; animation: pulse 1.1s infinite; }
+  @keyframes pulse { 50% { opacity: .7; } }
+  .reveal { animation: fade .35s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .samples { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
+  @media (max-width: 680px) { .samples { grid-template-columns: 1fr; } }
+  .sample { border: 1px solid #e4e8ee; border-radius: 10px; padding: 14px 16px; font-size: 14px; }
+  .sample h4 { margin: 0 0 8px; font-size: 13px; color: #5f6b7a; font-weight: 600; }
+  .sample summary { cursor: pointer; font-size: 13px; font-weight: 600; color: #5f6b7a; }
+  .sample summary:hover { color: #2456d6; }
+  .sample.b7 { background: #f4faf6; border-color: #cde8d6; }
+  .sample.b7 h4 { color: #147d43; }
+  .tts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .tts button { font-size: 12.5px; padding: 5px 12px; }
+  mark { background: linear-gradient(transparent 55%, #cde9b8 55%); color: inherit; padding: 0 1px; font-weight: 600; cursor: help; }
+  .hl-notes { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #cde8d6; font-size: 13px; }
+  .hl-notes li { margin: 3px 0; list-style: none; }
+  .hl-notes b { color: #147d43; font-family: Georgia, serif; }
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; margin-top: 6px; }
+  @media (max-width: 680px) { .checks { grid-template-columns: 1fr; } }
+  .checks h5 { grid-column: 1/-1; margin: 8px 0 0; font-size: 12.5px; color: #2456d6; letter-spacing: .5px; }
+  .checks label { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; cursor: pointer; padding: 3px 6px; border-radius: 6px; }
+  .checks label:hover { background: #f0f4ff; }
+  .checks input { margin-top: 5px; accent-color: #2456d6; }
+  .rec-sec { background: #fbfbfc; border: 1px dashed #d4dbe4; border-radius: 10px; padding: 12px 16px; margin-top: 14px; }
+  .rec-list { margin-top: 10px; }
+  .rec-item { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 13px; }
+  .rec-item audio { height: 32px; flex: 1; }
+  .rec-item .del { color: #b3261e; font-size: 12px; padding: 3px 8px; }
+  .rec-tip { font-size: 12px; color: #8a94a3; margin-top: 6px; }
+  .navbtns { display: flex; justify-content: space-between; margin-top: 22px; }
+  .done-banner { background: #e6f4ea; border: 1px solid #b5dfc4; color: #147d43; border-radius: 10px; padding: 10px 16px; font-size: 13.5px; margin-top: 18px; }
+  .note { font-size: 12.5px; color: #8a94a3; margin-top: 6px; }
+  .fb-zone { background: #f0f4ff; border: 1px solid #d7e5fb; border-radius: 10px; padding: 14px 18px; font-size: 13.5px; margin-top: 18px; }
+  .fb-zone .tts { margin-top: 10px; }
+  .fb { border-left: 3px solid #2456d6; background: #fff; border-radius: 0 8px 8px 0; padding: 10px 14px; font-size: 13.5px; margin: 10px 0; white-space: pre-wrap; }
+  .fb h6 { margin: 0 0 4px; font-size: 12.5px; color: #2456d6; }
+  .export-card { background: #fff8e6; border: 1px solid #f2dfa8; border-radius: 12px; padding: 16px 20px; font-size: 13.5px; }
+  .export-card button { margin-top: 8px; background: #b45309; border-color: #b45309; color: #fff; font-weight: 600; }
+  .locked { text-align: center; color: #8a94a3; font-size: 13px; padding: 14px 0 4px; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1f2933; color: #fff; padding: 9px 20px; border-radius: 99px; font-size: 13px; opacity: 0; transition: opacity .3s; pointer-events: none; }
+  .toast.show { opacity: .92; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>__LESSON_TITLE__</h1>
+  <div class="sub" id="submeta">雅思口语 · 两轮打磨：第一遍自答 → 对照样例自评 → 第二遍修改 → Band 7 目标样例</div>
+
+  <div class="flowbar" id="flowbar"></div>
+
+  <div id="qcard"></div>
+
+  <div class="navbtns">
+    <button id="prevBtn">← 上一题</button>
+    <button id="nextBtn" class="primary">下一题 →</button>
+  </div>
+
+  <div class="export-card" style="margin-top:26px">
+    <b>批改从 AI 来，页面自动接收</b><br>
+    每题做完两遍，点题内「🤖 交 AI 批改本题」，回对话说「<b>批</b>」，批改几秒后自动落回本题下方，永久保存。信箱服务由系统常驻托管；万一离线，题内会出现红色恢复指引和重试按钮。
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== 题库数据（来自课程 course-20260822-d54mga · Lesson 1，范文以题库 PDF 为底）===== */
+const QUESTIONS = __QUESTIONS_JSON__;
+
+/* ===== 自评清单（基于你的写作批改记录迁移：冠词、人称漂移、中式直译是高频复发）===== */
+const CHECKS = [
+  ["内容结构", [
+    "第一句直接回答问题，没有绕",
+    "给了 1 个理由或例子（2–4 句，不贪多）"
+  ]],
+  ["语法自查", [
+    "问过去的题，动词全部过去式了吗",
+    "冠词过一遍 a / an / the（高频复发）",
+    "人称一致：I / my / you 不中途漂移（高频复发）"
+  ]],
+  ["词汇地道", [
+    "没有中式直译？拿不准就退朴素说法",
+    "用上了题卡里至少 1 个亮点表达"
+  ]],
+  ["口语感", [
+    "开头有缓冲词（Well / Actually / Honestly）",
+    "读一遍，拗口的句子改短"
+  ]]
+];
+
+/* ===== 状态 ===== */
+/* ===== 本讲配置（生成时替换：见 SKILL.md）===== */
+const LESSON_ID = "__LESSON_ID__";        // 如 L02-tidiness
+const LESSON_TITLE = "__LESSON_TITLE__";  // 如 Part 1 · Tidiness 整洁
+const COURSE_LINE = "__COURSE_LINE__";    // 如 雅思口语 2026年9-12月题库
+const LESSON_NO = __LESSON_NO__;
+const TOTAL_LESSONS = __TOTAL_LESSONS__;
+const KEY = "ielts-speaking-" + LESSON_ID + "-v1";
+if (LESSON_ID.indexOf("__") >= 0) console.error("模板占位符未替换（LESSON_ID / QUESTIONS 等），生成方法见 english-speaking skill");
+let state = load();
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && s.q && s.q.length === QUESTIONS.length) return s;
+  } catch (e) {}
+  return {
+    cur: 0,
+    q: QUESTIONS.map(() => ({ first: "", firstDone: false, second: "", secondDone: false, checks: {} }))
+  };
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+
+/* ===== 录音 + 语音识别（录音仅会话内存；识别用浏览器原生 STT，Chrome/Safari 支持）===== */
+const recs = QUESTIONS.map(() => []);
+let recorder = null, recChunks = [], recQ = -1, recLabel = "录音";
+
+async function startRec(qi, label) {
+  if (recorder) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mime = ["audio/webm", "audio/mp4"].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
+    recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    recChunks = []; recQ = qi; recLabel = label;
+    recorder.ondataavailable = e => recChunks.push(e.data);
+    recorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(recChunks, { type: recorder.mimeType || "audio/webm" });
+      recs[qi].push({ label: recLabel + " " + (recs[qi].length + 1), url: URL.createObjectURL(blob), at: new Date() });
+      recorder = null;
+      refreshRecs(qi);
+    };
+    recorder.start();
+  } catch (e) {
+    toast("无法访问麦克风，请检查浏览器权限");
+    throw e;
+  }
+}
+function stopRec() { if (recorder && recorder.state === "recording") recorder.stop(); }
+
+/* ---- 说话录入：STT 转文字 + 同步留音频 ---- */
+let recog = null, dictQ = -1, dictField = null, finalTxt = "", baseTxt = "";
+function sttSupported() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+
+async function toggleDict(qi, field) {
+  if (recog) { stopDict(); return; }
+  if (!sttSupported()) { toast("此浏览器不支持语音识别，请用 Chrome 或 Safari 打开"); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recog = new SR();
+  recog.lang = "en-US"; recog.continuous = true; recog.interimResults = true;
+  dictQ = qi; dictField = field;
+  finalTxt = "";
+  baseTxt = (state.q[qi][field] || "").trim();
+  recog.onresult = (e) => {
+    let interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i];
+      if (r.isFinal) finalTxt += r[0].transcript;
+      else interim += r[0].transcript;
+    }
+    const txt = (baseTxt ? baseTxt + " " : "") + (finalTxt + interim).trim();
+    const ta = document.getElementById(field + "-" + qi);
+    if (ta) ta.value = txt;
+    state.q[qi][field] = txt;
+    wc(qi);
+  };
+  recog.onend = () => {
+    if (!recog) return;
+    const txt = (baseTxt ? baseTxt + " " : "") + finalTxt.trim();
+    if (txt) {
+      const ta = document.getElementById(dictField + "-" + dictQ);
+      if (ta) ta.value = txt;
+      state.q[dictQ][dictField] = txt;
+    }
+    recog = null;
+    save(); wc(qi); updateMicBtns();
+    stopRec();
+  };
+  recog.onerror = (e) => {
+    if (e.error === "not-allowed") toast("麦克风权限被拒绝，请在浏览器地址栏允许");
+    else if (e.error !== "aborted" && e.error !== "no-speech") toast("识别中断（" + e.error + "），再点一次继续");
+  };
+  try { await startRec(qi, "语音录入"); } catch (e) { /* 录音失败不阻断识别 */ }
+  try { recog.start(); } catch (e) { recog = null; }
+  updateMicBtns();
+  toast("正在听…开口说英语，说完再点一次结束");
+}
+function stopDict() { if (recog) { try { recog.stop(); } catch (e) {} } }
+function updateMicBtns() {
+  document.querySelectorAll(".mic-btn").forEach(b => {
+    const on = recog && +b.dataset.q === dictQ && b.dataset.f === dictField;
+    b.classList.toggle("listening", on);
+    b.textContent = on ? "■ 正在听…（说完点这里）" : b.dataset.label;
+  });
+}
+
+function recsHtml(qi) {
+  if (!recs[qi].length) return "";
+  return '<div class="rec-sec reveal" style="margin-top:14px"><b style="font-size:13px">本题录音（回放自查，刷新丢失）</b><div class="rec-list">' +
+    recs[qi].map((r, i) =>
+      '<div class="rec-item"><b>' + esc(r.label) + '</b><audio controls src="' + r.url + '"></audio><button class="del" onclick="delRec(' + qi + ',' + i + ')">删除</button></div>'
+    ).join("") + "</div></div>";
+}
+function refreshRecs(qi) {
+  const box = document.getElementById("recbox-" + qi);
+  if (box) box.innerHTML = recsHtml(qi);
+}
+function delRec(qi, i) { recs[qi].splice(i, 1); refreshRecs(qi); }
+
+/* 纯录音（跟读等，不转文字） */
+async function toggleRec(qi) {
+  if (recorder && recorder.state === "recording") { stopRec(); return; }
+  try { await startRec(qi, "跟读录音"); toast("录音中…再点一次结束"); } catch (e) {}
+}
+
+/* ===== TTS ===== */
+let voices = [];
+function loadVoices() { voices = (speechSynthesis.getVoices() || []).filter(v => v.lang && v.lang.toLowerCase().startsWith("en")); }
+if (window.speechSynthesis) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
+function pickVoice() {
+  const pref = ["Samantha", "Daniel", "Karen", "Moira", "Google US English", "Google UK English Female"];
+  for (const p of pref) { const v = voices.find(v => v.name.includes(p)); if (v) return v; }
+  return voices[0] || null;
+}
+function speak(text, rate) {
+  if (!window.speechSynthesis) { toast("此浏览器不支持语音朗读"); return; }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const v = pickVoice(); if (v) u.voice = v;
+  u.lang = "en-US"; u.rate = rate;
+  speechSynthesis.speak(u);
+}
+function stopSpeak() { if (window.speechSynthesis) speechSynthesis.cancel(); }
+
+/* ===== 渲染 ===== */
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function withHighlights(text, hls) {
+  let html = esc(text);
+  hls.forEach(([sub]) => {
+    html = html.replace(sub, m => '<mark>' + m + '</mark>');
+  });
+  return html;
+}
+function render() {
+  const fb = document.getElementById("flowbar");
+  fb.innerHTML = QUESTIONS.map((qq, i) =>
+    '<div class="dot' + (i === state.cur ? " cur" : "") + (state.q[i].secondDone ? " done" : "") + '" onclick="go(' + i + ')">' + (i + 1) + '</div>'
+  ).join("") + '<span class="flowmeta">已完成 ' + state.q.filter(x => x.secondDone).length + " / " + QUESTIONS.length + " 题</span>";
+
+  const i = state.cur, d = state.q[i], Q = QUESTIONS[i];
+  const checksHtml = CHECKS.map(([g, items]) =>
+    '<h5>' + g.toUpperCase() + " · " + g + '</h5>' + items.map((c, ci) => {
+      const id = "ck-" + i + "-" + g + "-" + ci;
+      return '<label><input type="checkbox" id="' + id + '"' + (d.checks[id] ? " checked" : "") + ' onchange="ck(this)"><span>' + c + "</span></label>";
+    }).join("")
+  ).join("");
+
+  let html = '<div class="card reveal" key="' + i + '">';
+  html += '<span class="qtag">Part 1 · 第 ' + (i + 1) + " / " + QUESTIONS.length + ' 题</span>';
+  html += '<p class="qtitle">' + esc(Q.q) + "</p>";
+  html += '<div class="hints"><b>提示</b> · ' + Q.hints.map(esc).join("；") + "</div>";
+
+  /* 第一遍 */
+  html += '<div class="step-label"><span class="n">1</span>第一遍作答（开口说或打字，2–4 句）</div>';
+  html += '<textarea id="first-' + i + '" placeholder="点下方「说第一遍」开口说（自动转文字），或直接打字…" oninput="onType(' + i + ',\'first\',this.value)">' + esc(d.first) + "</textarea>";
+  html += '<div class="tbar"><button class="mic-btn" data-q="' + i + '" data-f="first" data-label="🎤 说第一遍（自动转文字）" onclick="toggleDict(' + i + ',\'first\')">🎤 说第一遍（自动转文字）</button><span class="wc" id="wc-' + i + '"></span><button class="primary" onclick="submitFirst(' + i + ')">写完了，去自评</button></div>';
+
+  if (d.firstDone) {
+    /* 自评 + 折叠的参考样例兜底 */
+    html += '<div class="step-label"><span class="n">2</span>自评：对照清单检查第一遍（针对你的批改在本题完成后向 AI 获取）</div>';
+    html += '<div class="checks reveal" style="margin-top:4px">' + checksHtml + "</div>";
+    html += '<details class="sample reveal" style="margin-top:12px"><summary>没思路 / 想对照？展开题库参考样例（写第二遍前尽量少看）</summary><div id="tx-' + i + '" style="margin-top:10px">' + esc(Q.sample) + '</div><div class="note">合格线样例；更高分的表达见完成后的 Band 7 目标样例</div><div class="tts"><button onclick="speakById(' + i + ',0.95)">▶ 常速朗读</button><button onclick="speakById(' + i + ',0.72)">🐢 慢速跟读</button><button onclick="stopSpeak()">■ 停止</button></div></details>';
+
+    /* 第二遍 */
+    html += '<div class="step-label"><span class="n">3</span>第二遍作答（对照范文和自评结果修改）</div>';
+    html += '<textarea id="second-' + i + '" placeholder="点下方「说第二遍」开口说（自动转文字），或直接打字…" oninput="onType(' + i + ',\'second\',this.value)">' + esc(d.second) + "</textarea>";
+    html += '<div class="tbar"><button class="mic-btn" data-q="' + i + '" data-f="second" data-label="🎤 说第二遍（自动转文字）" onclick="toggleDict(' + i + ',\'second\')">🎤 说第二遍（自动转文字）</button><span class="wc" id="wc2-' + i + '"></span><button class="primary" onclick="submitSecond(' + i + ')">写完了，去拿批改</button></div>';
+  } else {
+    html += '<div class="locked">写完第一遍后解锁：自评清单 · 第二遍作答</div>';
+  }
+
+  if (d.secondDone) {
+    html += '<div class="step-label"><span class="n">4</span>Band 7 目标样例（<mark>高亮</mark>=亮点表达，对照你的第二遍找差距）</div>';
+    html += '<div class="sample b7 reveal"><h4>Band 7 目标样例</h4><div id="b7-' + i + '">' + withHighlights(Q.band7, Q.highlights) + '</div><div class="note">目标长这样；基于「你自己答案」的个性化润色从下面的批改闭环拿</div><div class="tts"><button onclick="speakB7(' + i + ',0.95)">▶ 常速朗读</button><button onclick="speakB7(' + i + ',0.72)">🐢 慢速跟读</button><button onclick="toggleRec(' + i + ')">● 录跟读</button><button onclick="stopSpeak()">■ 停止</button></div>';
+    html += '<ul class="hl-notes">' + Q.highlights.map(([sub, note]) => "<li><b>" + esc(sub) + "</b> — " + esc(note) + "</li>").join("") + "</ul></div>";
+
+    /* 批改闭环 */
+    html += '<div class="fb-zone reveal"><b>最后一步：拿针对你的批改</b>';
+    if (mbOnline) {
+      html += d.pending
+        ? '<div class="note" style="margin-top:8px;color:#b45309">⏳ 已提交，等 AI 批改中——回对话里说「批」，批改会自动出现在这里</div>'
+        : '<div class="tts"><button class="primary" onclick="submitToAI(' + i + ')">🤖 交 AI 批改本题</button></div><div class="note">点击后回对话说「批」，几秒后批改自动落在本题下方，无需复制粘贴</div>';
+    } else {
+      html += '<div class="note" style="margin-top:8px;color:#b3261e">⚠ 信箱服务离线，批改直连暂不可用。恢复：回 AI 对话说「起信箱」，或终端运行 python3 "Desktop/English Writing/speaking/mailbox.py"（服务通常由系统常驻托管，很少离线）</div><div class="tts"><button onclick="retryMb()">重试连接</button></div>';
+    }
+    if (d.feedback) html += '<div id="fb-' + i + '"><b style="font-size:12.5px;color:#2456d6">已保存的批改</b>' + fbHtml(d.feedback) + "</div>";
+    html += "</div>";
+  }
+
+  html += '<div id="recbox-' + i + '">' + recsHtml(i) + "</div>";
+  html += "</div>";
+  document.getElementById("qcard").innerHTML = html;
+  wc(i);
+  updateMicBtns();
+  document.getElementById("prevBtn").disabled = i === 0;
+  document.getElementById("nextBtn").disabled = i === QUESTIONS.length - 1;
+}
+
+function wc(i) {
+  const d = state.q[i];
+  const e1 = document.getElementById("wc-" + i), e2 = document.getElementById("wc2-" + i);
+  if (e1) e1.textContent = wordcount(d.first);
+  if (e2) e2.textContent = wordcount(d.second);
+}
+function wordcount(t) { const n = (t || "").trim().split(/\s+/).filter(Boolean).length; return n ? n + " words" : ""; }
+
+let typeTimer = null;
+function onType(i, field, val) {
+  state.q[i][field] = val;
+  clearTimeout(typeTimer);
+  typeTimer = setTimeout(() => { save(); wc(i); }, 400);
+}
+function submitFirst(i) {
+  if (wordcount(state.q[i].first).replace(/\D/g, "") < 5) { toast("先写 2–4 句英文再提交（现在太短啦）"); return; }
+  state.q[i].firstDone = true; save(); render();
+  document.querySelector(".checks") && document.querySelector(".checks").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+function submitSecond(i) {
+  if (wordcount(state.q[i].second).replace(/\D/g, "") < 5) { toast("第二遍也要写完整哦（2–4 句）"); return; }
+  state.q[i].secondDone = true; save(); render();
+  toast("本题完成 ✓");
+}
+function ck(el) {
+  const id = el.id, qi = state.cur;
+  state.q[qi].checks[id] = el.checked; save();
+}
+function go(i) {
+  state.cur = i; save(); render(); window.scrollTo({ top: 0, behavior: "smooth" });
+}
+function speakById(i, rate) { speak(QUESTIONS[i].sample, rate); }
+function speakB7(i, rate) { speak(QUESTIONS[i].band7, rate); }
+
+document.getElementById("prevBtn").onclick = () => state.cur > 0 && go(state.cur - 1);
+document.getElementById("nextBtn").onclick = () => state.cur < QUESTIONS.length - 1 && go(state.cur + 1);
+
+/* ===== 本地信箱（AI 直连模式；离线时只显示恢复指引，无手动模式）===== */
+const MB = "http://127.0.0.1:8765", LESSON = LESSON_ID;
+let mbOnline = false, mbTimer = null, mbWatermark = 0;
+
+function submitToAI(i) {
+  const d = state.q[i], Q = QUESTIONS[i];
+  fetch(MB + "/submit", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lesson: LESSON, items: [{ qi: i, q: Q.q, first: d.first, second: d.second }] })
+  }).then(r => r.json()).then(() => {
+    state.q[i].pending = true; save(); render();
+    toast("已提交 ✓ 回对话里说「批」，批改稍后自动出现");
+    pollFb();
+  }).catch(() => toast("提交失败——信箱离线，恢复方法见题内红色提示"));
+}
+function retryMb() {
+  fetch(MB + "/ping").then(r => r.json()).then(() => {
+    mbOnline = true; render();
+    toast("信箱已连接 ✓");
+    if (state.q.some(x => x.pending)) pollFb();
+  }).catch(() => toast("还是连不上——回对话说「起信箱」，或看题内指引"));
+}
+function pollFb() {
+  fetchFb(false);
+  if (mbTimer) return;
+  mbTimer = setInterval(() => fetchFb(true), 3000);
+  setTimeout(() => { if (mbTimer) { clearInterval(mbTimer); mbTimer = null; } }, 600000);
+}
+async function fetchFb(loud) {
+  try {
+    const list = await (await fetch(MB + "/feedback?ts=" + mbWatermark)).json();
+    let got = 0;
+    for (const fb of list) {
+      if (fb.lesson !== LESSON || fb.qi < 0 || fb.qi >= QUESTIONS.length) continue;
+      if (fb.ts <= mbWatermark) continue;
+      state.q[fb.qi].feedback = fb.text;
+      state.q[fb.qi].pending = false;
+      mbWatermark = Math.max(mbWatermark, fb.ts); got++;
+    }
+    if (got) {
+      save(); render();
+      if (loud) { toast("收到 AI 批改 ✓"); if (mbTimer) { clearInterval(mbTimer); mbTimer = null; } }
+    }
+  } catch (e) {}
+}
+
+/* ===== 批改渲染 ===== */
+function fbHtml(t) {
+  return t.split(/\n(?=【)/).map(s => s.trim()).filter(Boolean).map(seg => {
+    const m = seg.match(/^【(.+?)】/);
+    const title = m ? m[1] : "批改";
+    const body = m ? seg.slice(m[0].length).trim() : seg;
+    return '<div class="fb"><h6>【' + esc(title) + '】</h6>' + esc(body) + "</div>";
+  }).join("");
+}
+
+/* ===== 导出给 AI 批改（旧手动模式已移除，批改走信箱直连）===== */
+
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+document.getElementById("submeta").textContent = COURSE_LINE + " · 第 " + LESSON_NO + "/" + TOTAL_LESSONS + " 讲 · " + QUESTIONS.length + " 题 · 两轮打磨：第一遍自答 → 对照样例自评 → 第二遍修改 → Band 7 目标样例";
+render();
+/* 信箱探测：在线则切换 AI 直连模式，并补收错过的批改 */
+fetch(MB + "/ping").then(r => r.json()).then(() => {
+  mbOnline = true; render();
+  fetchFb(true);
+  if (state.q.some(x => x.pending)) pollFb();
+}).catch(() => {});
+/* 回到页面/窗口聚焦时补拉一次批改：轮询 10 分钟窗口过后写的批改也能自动出现，无需手动刷新 */
+document.addEventListener("visibilitychange", () => { if (!document.hidden && mbOnline) fetchFb(true); });
+window.addEventListener("focus", () => { if (mbOnline) fetchFb(true); });
+</script>
+</body>
+</html>

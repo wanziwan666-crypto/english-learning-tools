@@ -1,6 +1,6 @@
 # English Learning Tools
 
-一套五个 AI Agent Skill，覆盖英文学习的完整闭环：**遇见生词 → 初步学习 → 练习巩固 → 长期记忆**，外加素材线（经济学人供料）与听力线（影子跟读）。
+一套六个 AI Agent Skill，覆盖英文学习的完整闭环：**遇见生词 → 初步学习 → 练习巩固 → 长期记忆**，外加素材线（经济学人供料）、听力线（影子跟读）与口语线（雅思口语）。
 
 ```
 ┌────────────────────┐   选定一篇 md    ┌──────────────────┐  import_review_vocab  ┌────────────┐
@@ -15,6 +15,10 @@
 ┌────────────────────┐
 │ english-writing    │   （写作线，独立无依赖）
 │ 雅思写作 · 批改 · 范文库│
+└────────────────────┘
+┌────────────────────┐
+│ english-speaking   │   （口语线，独立无依赖）
+│ 雅思口语 · 网页练习+批改│
 └────────────────────┘
 ```
 
@@ -52,6 +56,13 @@
 - 输入：视频/音频 + SRT/VTT 字幕（或 `--url` 直链、TTS 场景）
 - 输出（`~/Desktop/English Learning/shadowing/`）：`<slug>-shadowing.html`（媒体同目录相对引用）
 
+### [english-speaking](english-speaking/)
+
+雅思口语题库练习页生成 + 本地信箱批改闭环，口语线独立无依赖：每讲一个单文件练习页（语音转文字作答、两轮打磨、自评清单、Band 7 目标样例高亮、TTS 朗读、跟读录音），launchd 常驻本地信箱（127.0.0.1:8765）实现「网页提交作答 → 对话里说『批』→ 批改自动回流网页」，无手动复制粘贴模式。
+
+- 输入：课程系统题库 / 用户给的题目（「生成口语第 N 讲网页」）；批改触发词「批」
+- 输出（`~/Desktop/English Writing/speaking/`）：`NN-slug.html` 单文件 + `index.html` 总目录 + launchd 信箱服务
+
 ## 安装
 
 整套 clone（或复制）到你的 Agent skills 目录：
@@ -61,7 +72,7 @@ git clone https://github.com/wanziwan666-crypto/english-learning-tools.git \
   ~/.agents/skills/english-learning-tools
 ```
 
-五个 skill 保持 `english-learning-tools/<skill>/` 的兄弟布局 —— `import_review_vocab.py` 靠相对路径找 `vocab-drill/vocab.mjs`，必须整套安装这个桥才通。
+六个 skill 保持 `english-learning-tools/<skill>/` 的兄弟布局 —— `import_review_vocab.py` 靠相对路径找 `vocab-drill/vocab.mjs`，必须整套安装这个桥才通。
 
 skill 安装本身不执行任何代码：english-writing 的产出目录 `~/Desktop/English Writing/`（含 `essays/`、`corrections/`、`writing/` 子目录）、english-reading-exercises 的 `~/Desktop/English Learning/articles/`、english-economist 的 `~/Desktop/English Learning/economist/` 都会在安装后的第一次 skill 会话里由 agent 自动创建，无需手动建目录。
 
@@ -77,7 +88,7 @@ clone 过旧仓库名 `english-reading-skills` 的同样直接 pull —— GitHu
 
 ## 共享架构
 
-五个 skill 由同一套模式构成（vocab-drill 是 Node，其余同款）：
+六个 skill 由同一套模式构成（vocab-drill 是 Node，其余同款）：
 
 - **Python 脚本 + HTML 模板**：数据 JSON 用 `json.dumps(..., ensure_ascii=False).replace("</", "<\\/")` 注入模板占位符（`</` 转义防止 `</script>` 提前闭合），生成自包含单文件 HTML，浏览器打开即用，无需服务器。
 - **生成前校验**：`validate_data.py` 检查「原文逐字存在」「批注落在对应段落」等约束 —— LLM 编造不在原文中的句子是实测最高频 bug，校验不过不许出文件。
