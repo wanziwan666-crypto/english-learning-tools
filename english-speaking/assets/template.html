@@ -18,7 +18,7 @@
   .dot.done::after { content: "✓"; margin-left: 3px; font-size: 10px; }
   .flowmeta { font-size: 12.5px; color: #5f6b7a; margin-left: 6px; }
   .card { background: #fff; border: 1px solid #e4e8ee; border-radius: 12px; padding: 22px 24px; margin-bottom: 16px; }
-  .qtitle { font-size: 19px; font-weight: 700; margin: 0 0 2px; }
+  .qtitle { font-size: 19px; font-weight: 700; margin: 0 0 2px; white-space: pre-line; }
   .qtag { display: inline-block; padding: 1px 10px; border-radius: 99px; font-size: 12px; background: #eef3ff; color: #2456d6; font-weight: 600; margin-bottom: 10px; }
   .hints { background: #f0f7ff; border: 1px solid #d7e5fb; border-radius: 10px; padding: 10px 16px; font-size: 13.5px; margin: 10px 0 0; }
   .hints b { color: #2456d6; }
@@ -129,10 +129,12 @@ const CHECKS = [
 const LESSON_ID = "__LESSON_ID__";        // 如 L02-tidiness
 const LESSON_TITLE = "__LESSON_TITLE__";  // 如 Part 1 · Tidiness 整洁
 const COURSE_LINE = "__COURSE_LINE__";    // 如 雅思口语 2026年9-12月题库
+const PART_LABEL = "__PART_LABEL__";      // 如 Part 1 / Part 2 / Part 3（题卡标签与作答量词）
+const ANSWER_SCOPE = PART_LABEL === "Part 1" ? "2–4 句" : "说满约 2 分钟";
 const LESSON_NO = __LESSON_NO__;
 const TOTAL_LESSONS = __TOTAL_LESSONS__;
 const KEY = "ielts-speaking-" + LESSON_ID + "-v1";
-if (LESSON_ID.indexOf("__") >= 0) console.error("模板占位符未替换（LESSON_ID / QUESTIONS 等），生成方法见 english-speaking skill");
+if (LESSON_ID.indexOf("__") >= 0 || PART_LABEL.indexOf("__") >= 0) console.error("模板占位符未替换（LESSON_ID / PART_LABEL / QUESTIONS 等），生成方法见 english-speaking skill");
 let state = load();
 function load() {
   try {
@@ -291,12 +293,12 @@ function render() {
   ).join("");
 
   let html = '<div class="card reveal" key="' + i + '">';
-  html += '<span class="qtag">Part 1 · 第 ' + (i + 1) + " / " + QUESTIONS.length + ' 题</span>';
+  html += '<span class="qtag">' + PART_LABEL + ' · 第 ' + (i + 1) + " / " + QUESTIONS.length + ' 题</span>';
   html += '<p class="qtitle">' + esc(Q.q) + "</p>";
   html += '<div class="hints"><b>提示</b> · ' + Q.hints.map(esc).join("；") + "</div>";
 
   /* 第一遍 */
-  html += '<div class="step-label"><span class="n">1</span>第一遍作答（开口说或打字，2–4 句）</div>';
+  html += '<div class="step-label"><span class="n">1</span>第一遍作答（开口说或打字，' + ANSWER_SCOPE + '）</div>';
   html += '<textarea id="first-' + i + '" placeholder="点下方「说第一遍」开口说（自动转文字），或直接打字…" oninput="onType(' + i + ',\'first\',this.value)">' + esc(d.first) + "</textarea>";
   html += '<div class="tbar"><button class="mic-btn" data-q="' + i + '" data-f="first" data-label="🎤 说第一遍（自动转文字）" onclick="toggleDict(' + i + ',\'first\')">🎤 说第一遍（自动转文字）</button><span class="wc" id="wc-' + i + '"></span><button class="primary" onclick="submitFirst(' + i + ')">写完了，去自评</button></div>';
 
@@ -356,12 +358,12 @@ function onType(i, field, val) {
   typeTimer = setTimeout(() => { save(); wc(i); }, 400);
 }
 function submitFirst(i) {
-  if (wordcount(state.q[i].first).replace(/\D/g, "") < 5) { toast("先写 2–4 句英文再提交（现在太短啦）"); return; }
+  if (wordcount(state.q[i].first).replace(/\D/g, "") < 5) { toast(PART_LABEL === "Part 1" ? "先写 2–4 句英文再提交（现在太短啦）" : "Part 2 独白要说满约 2 分钟（现在太短啦）"); return; }
   state.q[i].firstDone = true; save(); render();
   document.querySelector(".checks") && document.querySelector(".checks").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 function submitSecond(i) {
-  if (wordcount(state.q[i].second).replace(/\D/g, "") < 5) { toast("第二遍也要写完整哦（2–4 句）"); return; }
+  if (wordcount(state.q[i].second).replace(/\D/g, "") < 5) { toast(PART_LABEL === "Part 1" ? "第二遍也要写完整哦（2–4 句）" : "第二遍也要说满约 2 分钟哦"); return; }
   state.q[i].secondDone = true; save(); render();
   toast("本题完成 ✓");
 }

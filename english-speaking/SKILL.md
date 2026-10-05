@@ -1,6 +1,6 @@
 ---
 name: english-speaking
-description: 雅思口语题库练习页生成 + 本地信箱批改闭环。当用户说「生成口语练习页/口语网页版/口语第 N 讲网页」「铺下一讲口语」「把口语题库做成网页」，或单字「批」要求批改信箱里的口语作答，或说「起信箱/信箱掉了/信箱离线」要求恢复本地批改服务，或问到口语练习页/信箱服务怎么用时触发。产出单文件 HTML（语音转文字作答、TTS 朗读、两轮打磨、自评清单、Band 7 目标样例、AI 批改直连），信箱服务由 launchd 常驻托管（127.0.0.1:8765）实现网页提交→AI 批改→自动回填，无手动模式。与 english-writing（写作）同家族，本 skill 只管口语。
+description: 雅思口语题库练习页生成 + 本地信箱批改闭环。当用户说「生成口语练习页/口语网页版/口语第 N 讲网页」「铺下一讲口语」「把口语题库做成网页」「把 PDF/Word 题库做成口语练习页」「用这个文档出口语题」，或单字「批」要求批改信箱里的口语作答，或说「起信箱/信箱掉了/信箱离线」要求恢复本地批改服务，或问到口语练习页/信箱服务怎么用时触发。产出单文件 HTML（语音转文字作答、TTS 朗读、两轮打磨、自评清单、Band 7 目标样例、AI 批改直连），信箱服务由 launchd 常驻托管（127.0.0.1:8765）实现网页提交→AI 批改→自动回填，无手动模式。用户给 pdf/docx/doc/rtf/html/txt/md 文档路径时走 assets/ingest.py 抽取 + references/ingest.md 流程出题（自包含，不依赖课程系统）。与 english-writing（写作）同家族，本 skill 只管口语。
 ---
 
 # 雅思口语 · 网页练习页生成与批改闭环
@@ -22,20 +22,22 @@ description: 雅思口语题库练习页生成 + 本地信箱批改闭环。当�
 1. 扫描 `~/Desktop/English Writing/speaking/` 下已有的 `NN-*.html`（index.html 除外）
 2. 与全集对照（读 `index.html` 的讲次卡片，或课程系统 `course-edit_read`），输出「已生成 / 待生成」两栏清单，让用户挑
 3. 用户只说「下一讲」时，取已生成讲次的最大号 +1
+4. 用户给文档（PDF/Word 等）时，清单步骤换成 `references/ingest.md` Step 3 的文档主题对照清单（先抽取拆题，再列「已匹配 / 文档多出 / index 有文档没有」三栏）
 
 ### 数据来源（按优先级）
 1. **课程系统题库**：`course-edit_read` 读对应课节（如「雅思口语 2026年9-12月题库」course-20260822-d54mga），每个 activity 的 step content 里有 `instruction`（含题目与参考范文）、`reference`（Band 7 润色版）、`hints`
 2. 用户直接给的题目/范文
-3. PDF 题库（analyze-material 解析）
+3. **PDF/Word 题库文档**（pdf/docx/doc/rtf/html/txt/md）：`assets/ingest.py` 机械抽取 + `references/ingest.md` 流程（**必须先读它**）——自包含能力，不依赖课程系统；用户直接给文档路径时优先走这条
 
 ### 步骤
 
 1. 复制 `assets/template.html` 到 `~/Desktop/English Writing/speaking/NN-slug.html`（NN=两位讲次号，如 `02-tidiness.html`）
-2. 替换 6 个占位符：
+2. 替换 7 个占位符：
    - `<title>` 与 `<h1>` 里的 `__LESSON_TITLE__`（如 `Part 1 · Tidiness 整洁`）
    - `__LESSON_ID__`：`L{NN}-{slug}`（如 `L02-tidiness`），必须全系列唯一——它是 localStorage key 和信箱路由的派生源
+   - `__PART_LABEL__`：`Part 1 / Part 2 / Part 3`（题卡标签；Part 2 cue card 讲必改）
    - `__COURSE_LINE__` / `__LESSON_NO__` / `__TOTAL_LESSONS__`
-   - `__QUESTIONS_JSON__`：题库数组（schema 见下），用 `json.dumps(questions, ensure_ascii=False, indent=2)` 生成后嵌入
+   - `__QUESTIONS_JSON__`：题库数组（schema 见下），用 `json.dumps(questions, ensure_ascii=False, indent=2).replace("</", "<\\/")` 生成后嵌入（`</` 转义防 `</script>` 提前闭合）
 3. 确保信箱服务在跑（见下），`open` 页面交付
 4. **更新 `speaking/index.html` 总目录**：把该讲从灰色待生成卡片换成 `<a class="lesson" href="NN-slug.html">`。目录页是用户的日常入口（不经过对话），漏更新 = 用户以为这讲不存在。新增讲次卡片也照此维护
 
@@ -54,7 +56,7 @@ description: 雅思口语题库练习页生成 + 本地信箱批改闭环。当�
 highlights 由 AI 从 band7 里挑 2-4 个：优先固定搭配（如 `attention to detail`）、口语衔接（`That said,`）、画面感动词短语（`descends into chaos`）。子串必须在 band7 原文中精确出现（渲染靠子串高亮），注释用中文、一句话说清为什么值得学。
 
 ### 生成后验证（必做）
-- `python3 -m http.server 8741 --directory <speaking目录>` 起静态服务，playwright **DOM 断言**（别只看截图——脚本死没死肉眼看不出）：`#flowbar .dot` 数量 === 题数、`#first-0` 存在、console error / pageerror 为 0（favicon 404 豁免）。教训：02-tidiness 曾因 `.sub` 缺 `id="submeta"`，脚本在 `render()` 前 null 赋值抛错、整页空白，而静态标题看着一切正常
+- `python3 -m http.server 8741 --directory <speaking目录>` 起静态服务，playwright **DOM 断言**（别只看截图——脚本死没死肉眼看不出）：`#flowbar .dot` 数量 === 题数、`#first-0` 存在、`.qtag` 文本含 PART_LABEL、console error / pageerror 为 0（favicon 404 豁免）。教训：02-tidiness 曾因 `.sub` 缺 `id="submeta"`，脚本在 `render()` 前 null 赋值抛错、整页空白，而静态标题看着一切正常
 - 若信箱在跑，确认 fb-zone 显示「🤖 交 AI 批改本题」而非手动模式
 
 ## 二、信箱服务（launchd 常驻）
