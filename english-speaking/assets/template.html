@@ -219,6 +219,7 @@ function commitDict(s) {
 function teardownDict(s, msg) {
   if (s.dead) return;
   s.dead = true;
+  clearTimeout(s.timer); clearTimeout(s.stopTimer);
   try { if (s.r) { s.r.onresult = s.r.onerror = s.r.onend = null; s.r.abort(); } } catch (e) {}
   if (dict === s) dict = null;
   commitDict(s); updateMicBtns(); stopRec();
@@ -228,7 +229,11 @@ function launchDict(s) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const r = s.r = new SR();
   r.lang = "en-US"; r.continuous = true; r.interimResults = true;
+  let alive = false;
+  const mark = () => { alive = true; };
+  r.onstart = mark;
   r.onresult = (e) => {
+    mark();
     if (s.dead || s.r !== r) return;               // 已收摊/已换实例的迟到结果：忽略
     let interim = "";
     for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -242,19 +247,26 @@ function launchDict(s) {
     commitDict(s);
   };
   r.onerror = (e) => {
+    mark();
     if (s.dead || s.r !== r) return;
     if (e.error === "not-allowed") { s.fatal = true; toast("麦克风权限被拒绝，请在浏览器地址栏允许"); }
     else if (e.error === "audio-capture" || e.error === "service-not-allowed") s.fatal = true;
     /* network / no-speech / aborted 不算致命：onend 里换新实例续听 */
   };
   r.onend = () => {
+    mark(); clearTimeout(s.timer);
     if (s.dead || s.r !== r) return;               // 旧实例迟到的 end：忽略，不动当前会话
     if (s.wantStop || s.fatal) { teardownDict(s); return; }
     if (!s.gotResult && ++s.noResult > 8) { teardownDict(s, "一直没听到声音，识别已停；点按钮可重新开始"); return; }
     if (s.gotResult) { s.noResult = 0; s.gotResult = false; }
     launchDict(s);                                 // 浏览器自己断流（静音超时/网络抖动）：换实例自动续听，不打断作答
   };
-  try { r.start(); s.started = true; } catch (e) { teardownDict(s, "识别启动失败，再点一次试试"); }
+  try { r.start(); s.started = true; } catch (e) { teardownDict(s, "识别启动失败，再点一次试试"); return; }
+  // 看门狗：连不上识别服务时 start() 后一个事件都不来（连 end 都没有，stop() 也无效），
+  // 会话变僵尸、按钮卡在「正在听」。9 秒无任何生命周期事件即强制收摊并提示。
+  s.timer = setTimeout(() => {
+    if (!alive && dict === s && !s.dead) teardownDict(s, "语音识别没反应——多半是网络连不上识别服务（Chrome 需能访问 Google），检查网络/代理后再点一次，或改用 Safari 打开");
+  }, 9000);
 }
 async function toggleDict(qi, field) {
   if (dict) { stopDict(); return; }
@@ -272,7 +284,11 @@ function stopDict() {
   const s = dict;
   s.wantStop = true;
   if (!s.started || !s.r) { teardownDict(s); return; }   // 尚未 start 就点停：直接收摊
-  try { s.r.stop(); } catch (e) { teardownDict(s); }     // 正常等 onend 收摊（Chrome 会先补最终结果）
+  try {
+    s.r.stop();
+    // stop() 后 onend 迟迟不来（僵尸会话连 stop 都不响应）：2 秒后强制收摊，按钮绝不卡死
+    s.stopTimer = setTimeout(() => { if (dict === s && !s.dead) teardownDict(s, "已强制停止（识别服务无响应）"); }, 2000);
+  } catch (e) { teardownDict(s); }                // 正常等 onend 收摊（Chrome 会先补最终结果）
 }
 function updateMicBtns() {
   document.querySelectorAll(".mic-btn").forEach(b => {
