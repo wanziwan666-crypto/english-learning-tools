@@ -63,7 +63,7 @@ highlights 由 AI 从 band7 里挑 2-4 个：优先固定搭配（如 `attention
 
 - 脚本：`~/Desktop/English Writing/speaking/mailbox.py`（skill 的 `assets/mailbox.py` 是母本；目录里没有就拷一份过去。**改了母本后同样要拷过去并重启 launchd 才生效**，流程见下）
 - **已装 LaunchAgent**：`~/Library/LaunchAgents/com.fangyiwan.english-speaking-mailbox.plist`——开机自启 + KeepAlive 崩溃自动拉起，**正常情况下永远在线，没有手动模式**（页面离线时只显示恢复指引 + 重试按钮）
-- 协议：`GET /ping`、`POST /submit`（网页提交作答）、`GET /feedback?ts=`（网页轮询批改）、`POST /grade`（agent 批改写回：追加 feedbacks + 按 ts 删本次处理的 submissions，全部在服务器进程内串行完成——**agent 永远不要直接改写 mailbox.json**，与服务器并发整读整写会互相覆盖、静默丢提交）、`GET /` 与 `GET /NN-*.html`（静态托管练习页，同源 http 打开；`Cache-Control: no-store` 就地重生成后浏览器立拿新版；Host 为 localhost 时 302 到 127.0.0.1 统一源，防 localStorage/麦克风授权分裂；只放行目录内扁平 `*.html`，无路径穿越）
+- 协议：`GET /ping`、`POST /submit`（网页提交作答）、`GET /feedback?ts=`（网页轮询批改）、`POST /grade`（agent 批改写回：追加 feedbacks + 按 ts 删本次处理的 submissions，mailbox.json 的读改写全在 `_BOX_LOCK` 内串行完成——**agent 永远不要直接改写 mailbox.json**，与服务器并发整读整写会互相覆盖、静默丢提交）、`POST /stt`（本地语音转文字兜底：body 为浏览器识别失败时上传的录音裸字节 webm/mp4，服务器用 faster-whisper small int8 CPU 本地转写返回 `{ok, text}`，不依赖网络；模型懒加载常驻，`_STT_LOCK` 串行排队；未装 faster-whisper 或模型未缓存返回 503+原因，页面 toast 提示回对话说一声（依赖随 english-shadowing skill 装的 faster-whisper 与 ~/.cache/huggingface 缓存模型；缺了只影响 /stt，其余端点不受影响）。服务器是多线程 ThreadingHTTPServer——转写要跑几十秒，不能堵 /ping、/feedback）、`GET /` 与 `GET /NN-*.html`（静态托管练习页，同源 http 打开；`Cache-Control: no-store` 就地重生成后浏览器立拿新版；Host 为 localhost 时 302 到 127.0.0.1 统一源，防 localStorage/麦克风授权分裂；只放行目录内扁平 `*.html`，无路径穿越）
 - 数据文件：同目录 `mailbox.json`（`{submissions: […], feedbacks: […]}`）。**网页会拉走全部 feedbacks——测试后必须清掉测试数据或删掉整个 mailbox.json**，否则会污染用户页面
 - 用户说「起信箱 / 信箱掉了 / 信箱离线」时，按序排查：
   1. `curl -s -m 3 http://127.0.0.1:8765/ping` 通了 → 问题在页面侧，让用户刷新
@@ -95,7 +95,7 @@ print(urllib.request.urlopen(req, timeout=5).read().decode())  # {"ok": true, "f
 
 ## 四、已知边界（用户问起时答）
 
-- 语音识别（STT）用浏览器原生 API：Chrome 走 Google 服务需联网；Safari 14.1+ 可用。都不支持时按钮会提示，退化为打字。识别会话由页内 `dict` 会话对象管理：浏览器自己断流（静音超时/网络抖动/continuous 上限）会换新实例自动续听、不打断作答，长静音约 8 轮后放弃并提示；点一次按钮=开始、再点=结束，启动等待期间再点=取消；识别服务连不上时（Chrome 需能访问 Google，连不上会话会僵死：start 后零事件、stop 也无响应）由 9 秒无事件看门狗强制收摊并提示「检查网络/代理或改用 Safari」，点停止 2 秒无响应同样强制收摊——按钮不会卡在「正在听」
+- 语音识别（STT）用浏览器原生 API：Chrome 走 Google 服务需联网；Safari 14.1+ 可用。都不支持时按钮会提示，退化为打字。识别会话由页内 `dict` 会话对象管理：浏览器自己断流（静音超时/网络抖动/continuous 上限）会换新实例自动续听、不打断作答，长静音约 8 轮后放弃并提示；点一次按钮=开始、再点=结束，启动等待期间再点=取消；识别服务连不上时（Chrome 需能访问 Google，连不上会话会僵死：start 后零事件、stop 也无响应）由 9 秒无事件看门狗识别——**录音通常是好的，此时不掐录音**：拆掉僵死识别实例、按钮转「■ 录音中…（自动转文字）」继续录，说完点停后录音自动 POST 信箱 `/stt` 用本地 faster-whisper 转写落进作答框（用户网络永远连不上 Google 也照常出字）；录音条目另有手动「🔍 本地转文字」按钮，转过一次收起防重复追加。自动转写只在整段一个字都没出过时触发（有字说明浏览器识别正常），且要求录音 >2KB（双击取消产生的空壳录音不触发）。点停止 2 秒无响应同样强制收摊——按钮不会卡死
 - 录音仅会话内存，刷新丢失（答案文本和批改持久化在 localStorage）
 - 练习页日常走 `http://127.0.0.1:8765/` 同源打开（麦克风授权 Chrome 只记这一次）。file:// 双击仍可用——页面 head 的升级脚本会在信箱在线时自动跳到 http，跳转把 file:// 侧 localStorage 的作答进度经 `#migrate=` 带过去、仅补缺不覆盖；信箱离线时留在 file:// 原样可练，只是 Chrome 对 file:// 每次录音都重新弹授权窗（Chrome 的既定行为，无解，别再找设置项）。信箱跨域由 CORS `*` 处理，并带 Origin 校验：curl（无 Origin）、file:// 页面（`Origin: null`）与同源 http 页面放行，浏览器里其他网页一律 403——仅监听回环挡不住它们
 - 批改只有一种获取方式：信箱直连。页面离线 = 异常状态（红色指引 + 重试按钮），不要建议手动复制粘贴——用户已明确否决手动模式

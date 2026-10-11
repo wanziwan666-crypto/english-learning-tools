@@ -183,7 +183,7 @@ function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
 const recs = QUESTIONS.map(() => []);
 let recorder = null, recChunks = [], recQ = -1, recLabel = "录音";
 
-async function startRec(qi, label) {
+async function startRec(qi, label, sess) {
   if (recorder) return;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -194,9 +194,11 @@ async function startRec(qi, label) {
     recorder.onstop = () => {
       stream.getTracks().forEach(t => t.stop());
       const blob = new Blob(recChunks, { type: recorder.mimeType || "audio/webm" });
-      recs[qi].push({ label: recLabel + " " + (recs[qi].length + 1), url: URL.createObjectURL(blob), at: new Date() });
+      recs[qi].push({ label: recLabel + " " + (recs[qi].length + 1), url: URL.createObjectURL(blob), at: new Date(), blob: blob, field: sess ? sess.field : null });
       recorder = null;
       refreshRecs(qi);
+      // 浏览器识别整段没出过一个字（服务连不上等）：录音落地即自动本地转写兜底
+      if (sess && !sess.fin.trim() && blob.size > 2000) localStt({ qi: qi, field: sess.field, blob: blob, ent: recs[qi][recs[qi].length - 1] });
     };
     recorder.start();
   } catch (e) {
@@ -207,7 +209,7 @@ async function startRec(qi, label) {
 function stopRec() { if (recorder && recorder.state === "recording") recorder.stop(); }
 
 /* ---- 说话录入：STT 转文字 + 同步留音频 ---- */
-let dict = null;   // 当前听写会话 {qi, field, base, fin, shown, r, wantStop, started, dead, fatal, gotResult, noResult}
+let dict = null;   // 当前听写会话 {qi, field, base, fin, shown, r, wantStop, started, dead, fatal, gotResult, noResult, sttDead, recOk}
 function sttSupported() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
 
 function commitDict(s) {
@@ -262,21 +264,26 @@ function launchDict(s) {
     launchDict(s);                                 // 浏览器自己断流（静音超时/网络抖动）：换实例自动续听，不打断作答
   };
   try { r.start(); s.started = true; } catch (e) { teardownDict(s, "识别启动失败，再点一次试试"); return; }
-  // 看门狗：连不上识别服务时 start() 后一个事件都不来（连 end 都没有，stop() 也无效），
-  // 会话变僵尸、按钮卡在「正在听」。9 秒无任何生命周期事件即强制收摊并提示。
+  // 看门狗：连不上识别服务时 start() 后一个事件都不来（连 end 都没有，stop() 也无效）。
+  // 此时录音通常是好的：不掐录音，转入「仅录音 + 本地转写」——说完点按钮，录音自动送本地 whisper。
   s.timer = setTimeout(() => {
-    if (!alive && dict === s && !s.dead) teardownDict(s, "语音识别没反应——多半是网络连不上识别服务（Chrome 需能访问 Google），检查网络/代理后再点一次，或改用 Safari 打开");
+    if (alive || s.dead || dict !== s) return;
+    try { if (s.r) { s.r.onresult = s.r.onerror = s.r.onend = null; s.r.abort(); } } catch (e) {}
+    s.r = null; s.sttDead = true;
+    updateMicBtns();
+    if (s.recOk) toast("浏览器识别连不上服务（Chrome 需能访问 Google）——没关系，继续说完，点按钮后录音自动本地转文字");
+    else teardownDict(s, "语音识别没反应——多半是网络连不上识别服务，检查网络/代理后再点一次");
   }, 9000);
 }
 async function toggleDict(qi, field) {
   if (dict) { stopDict(); return; }
   if (!sttSupported()) { toast("此浏览器不支持语音识别，请用 Chrome 或 Safari 打开"); return; }
   const base = (state.q[qi][field] || "").trim();
-  const s = dict = { qi, field, base, fin: "", shown: base, r: null, wantStop: false, started: false, dead: false, fatal: false, gotResult: false, noResult: 0 };
+  const s = dict = { qi, field, base, fin: "", shown: base, r: null, wantStop: false, started: false, dead: false, fatal: false, gotResult: false, noResult: 0, sttDead: false, recOk: false };
   updateMicBtns();                                 // 点击即刻进入监听态
   launchDict(s);                                   // 必须在点击手势链内启动识别：Safari 要求 user activation，隔着 await 手势会失效
   if (s.dead) return;                              // 启动即失败已收摊（提示已给）
-  try { await startRec(qi, "语音录入"); } catch (e) { /* 录音失败不阻断识别 */ }
+  try { await startRec(qi, "语音录入", s); s.recOk = true; } catch (e) { /* 录音失败不阻断识别 */ }
   if (dict !== s || s.dead) { stopRec(); return; } // 等麦克风期间被点停：顺手关掉刚建好的录音
   toast("正在听…开口说英语，说完再点一次结束");
 }
@@ -284,10 +291,10 @@ function stopDict() {
   if (!dict) return;
   const s = dict;
   s.wantStop = true;
-  if (!s.started || !s.r) { teardownDict(s); return; }   // 尚未 start 就点停：直接收摊
+  if (!s.started || !s.r || s.sttDead) { teardownDict(s); return; }   // 无活识别（未启动/已转纯录音）：直接收摊，onstop 里自动本地转写
   try {
     s.r.stop();
-    // stop() 后 onend 迟迟不来（僵尸会话连 stop 都不响应）：2 秒后强制收摊，按钮绝不卡死
+    // stop() 后 onend 迟迟不来（识别服务僵死连 stop 都不响应）：2 秒后强制收摊，按钮绝不卡死
     s.stopTimer = setTimeout(() => { if (dict === s && !s.dead) teardownDict(s, "已强制停止（识别服务无响应）"); }, 2000);
   } catch (e) { teardownDict(s); }                // 正常等 onend 收摊（Chrome 会先补最终结果）
 }
@@ -295,15 +302,37 @@ function updateMicBtns() {
   document.querySelectorAll(".mic-btn").forEach(b => {
     const on = dict && +b.dataset.q === dict.qi && b.dataset.f === dict.field;
     b.classList.toggle("listening", on);
-    b.textContent = on ? "■ 正在听…（说完点这里）" : b.dataset.label;
+    b.textContent = !on ? b.dataset.label
+      : (dict.sttDead ? "■ 录音中…说完点这里（自动转文字）" : "■ 正在听…（说完点这里）");
   });
 }
+
+/* ---- 本地转写兜底：浏览器识别拿不到文字时，把录音交给信箱 /stt（本机 faster-whisper，不依赖网络）---- */
+function localStt(item) {
+  if (!item || !item.blob) { toast("这段录音已不可用（刷新会丢），重新录一段再试"); return; }
+  toast("正在本地转写录音…（几秒到几十秒，别关页面）");
+  fetch(MB + "/stt", { method: "POST", headers: { "Content-Type": item.blob.type || "audio/webm" }, body: item.blob })
+    .then(r => r.json()).then(j => {
+      if (j && j.error) { toast("本地转写不可用：" + (j.detail || j.error)); return; }
+      const t = ((j && j.text) || "").trim();
+      if (!t) { toast("本地转写没认出内容（录音太短或太安静）"); return; }
+      const cur = (state.q[item.qi][item.field] || "").trim();
+      state.q[item.qi][item.field] = cur ? cur + " " + t : t;
+      save();
+      const ta = document.getElementById(item.field + "-" + item.qi);
+      if (ta) ta.value = state.q[item.qi][item.field];
+      wc(item.qi);
+      if (item.ent) { item.ent.sttDone = true; refreshRecs(item.qi); }   // 转过一次收起按钮，防重复追加
+      toast("本地转写完成 ✓ 已填入");
+    }).catch(() => toast("本地转写失败：信箱离线或未装 faster-whisper，回对话说一声"));
+}
+function recStt(qi, i) { const r = recs[qi] && recs[qi][i]; if (r && r.field && !r.sttDone) localStt({ qi: qi, field: r.field, blob: r.blob, ent: r }); }
 
 function recsHtml(qi) {
   if (!recs[qi].length) return "";
   return '<div class="rec-sec reveal" style="margin-top:14px"><b style="font-size:13px">本题录音（回放自查，刷新丢失）</b><div class="rec-list">' +
     recs[qi].map((r, i) =>
-      '<div class="rec-item"><b>' + esc(r.label) + '</b><audio controls src="' + r.url + '"></audio><button class="del" onclick="delRec(' + qi + ',' + i + ')">删除</button></div>'
+      '<div class="rec-item"><b>' + esc(r.label) + '</b><audio controls src="' + r.url + '"></audio>' + (r.field && !r.sttDone ? '<button onclick="recStt(' + qi + ',' + i + ')">🔍 本地转文字</button>' : (r.sttDone ? '<span class="wc">✓ 已转文字</span>' : '')) + '<button class="del" onclick="delRec(' + qi + ',' + i + ')">删除</button></div>'
     ).join("") + "</div></div>";
 }
 function refreshRecs(qi) {
@@ -449,7 +478,7 @@ document.getElementById("prevBtn").onclick = () => state.cur > 0 && go(state.cur
 document.getElementById("nextBtn").onclick = () => state.cur < QUESTIONS.length - 1 && go(state.cur + 1);
 
 /* ===== 本地信箱（AI 直连模式；离线时只显示恢复指引，无手动模式）===== */
-const MB = "http://127.0.0.1:8765", LESSON = LESSON_ID;
+const MB = (location.protocol === "http:" && location.hostname === "127.0.0.1") ? location.origin : "http://127.0.0.1:8765", LESSON = LESSON_ID;
 let mbOnline = false, mbTimer = null, mbWatermark = 0;
 
 function submitToAI(i) {
