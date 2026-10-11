@@ -273,11 +273,12 @@ async function toggleDict(qi, field) {
   if (!sttSupported()) { toast("此浏览器不支持语音识别，请用 Chrome 或 Safari 打开"); return; }
   const base = (state.q[qi][field] || "").trim();
   const s = dict = { qi, field, base, fin: "", shown: base, r: null, wantStop: false, started: false, dead: false, fatal: false, gotResult: false, noResult: 0 };
-  updateMicBtns();                                 // 点击即刻进入监听态，等麦克风期间按钮不再误导
+  updateMicBtns();                                 // 点击即刻进入监听态
+  launchDict(s);                                   // 必须在点击手势链内启动识别：Safari 要求 user activation，隔着 await 手势会失效
+  if (s.dead) return;                              // 启动即失败已收摊（提示已给）
   try { await startRec(qi, "语音录入"); } catch (e) { /* 录音失败不阻断识别 */ }
-  if (dict !== s) { stopRec(); return; }           // 等麦克风期间被点停：顺手关掉刚建好的录音
-  launchDict(s);
-  if (!s.dead) toast("正在听…开口说英语，说完再点一次结束");
+  if (dict !== s || s.dead) { stopRec(); return; } // 等麦克风期间被点停：顺手关掉刚建好的录音
+  toast("正在听…开口说英语，说完再点一次结束");
 }
 function stopDict() {
   if (!dict) return;
