@@ -207,56 +207,76 @@ async function startRec(qi, label) {
 function stopRec() { if (recorder && recorder.state === "recording") recorder.stop(); }
 
 /* ---- 说话录入：STT 转文字 + 同步留音频 ---- */
-let recog = null, dictQ = -1, dictField = null, finalTxt = "", baseTxt = "";
+let dict = null;   // 当前听写会话 {qi, field, base, fin, shown, r, wantStop, started, dead, fatal, gotResult, noResult}
 function sttSupported() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
 
-async function toggleDict(qi, field) {
-  if (recog) { stopDict(); return; }
-  if (!sttSupported()) { toast("此浏览器不支持语音识别，请用 Chrome 或 Safari 打开"); return; }
+function commitDict(s) {
+  const ta = document.getElementById(s.field + "-" + s.qi);
+  if (ta) ta.value = s.shown;
+  state.q[s.qi][s.field] = s.shown;
+  save(); wc(s.qi);
+}
+function teardownDict(s, msg) {
+  if (s.dead) return;
+  s.dead = true;
+  try { if (s.r) { s.r.onresult = s.r.onerror = s.r.onend = null; s.r.abort(); } } catch (e) {}
+  if (dict === s) dict = null;
+  commitDict(s); updateMicBtns(); stopRec();
+  if (msg) toast(msg);
+}
+function launchDict(s) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recog = new SR();
-  recog.lang = "en-US"; recog.continuous = true; recog.interimResults = true;
-  dictQ = qi; dictField = field;
-  finalTxt = "";
-  baseTxt = (state.q[qi][field] || "").trim();
-  recog.onresult = (e) => {
+  const r = s.r = new SR();
+  r.lang = "en-US"; r.continuous = true; r.interimResults = true;
+  r.onresult = (e) => {
+    if (s.dead || s.r !== r) return;               // 已收摊/已换实例的迟到结果：忽略
     let interim = "";
     for (let i = e.resultIndex; i < e.results.length; i++) {
-      const r = e.results[i];
-      if (r.isFinal) finalTxt += r[0].transcript;
-      else interim += r[0].transcript;
+      const res = e.results[i];
+      if (res.isFinal) s.fin += (s.fin && !/\s$/.test(s.fin) ? " " : "") + res[0].transcript;
+      else interim += res[0].transcript;
     }
-    const txt = (baseTxt ? baseTxt + " " : "") + (finalTxt + interim).trim();
-    const ta = document.getElementById(field + "-" + qi);
-    if (ta) ta.value = txt;
-    state.q[qi][field] = txt;
-    wc(qi);
+    s.gotResult = true;
+    const spoken = (s.fin + interim).trim();
+    s.shown = spoken ? (s.base ? s.base + " " : "") + spoken : s.base;
+    commitDict(s);
   };
-  recog.onend = () => {
-    if (!recog) return;
-    const txt = (baseTxt ? baseTxt + " " : "") + finalTxt.trim();
-    if (txt) {
-      const ta = document.getElementById(dictField + "-" + dictQ);
-      if (ta) ta.value = txt;
-      state.q[dictQ][dictField] = txt;
-    }
-    recog = null;
-    save(); wc(qi); updateMicBtns();
-    stopRec();
+  r.onerror = (e) => {
+    if (s.dead || s.r !== r) return;
+    if (e.error === "not-allowed") { s.fatal = true; toast("麦克风权限被拒绝，请在浏览器地址栏允许"); }
+    else if (e.error === "audio-capture" || e.error === "service-not-allowed") s.fatal = true;
+    /* network / no-speech / aborted 不算致命：onend 里换新实例续听 */
   };
-  recog.onerror = (e) => {
-    if (e.error === "not-allowed") toast("麦克风权限被拒绝，请在浏览器地址栏允许");
-    else if (e.error !== "aborted" && e.error !== "no-speech") toast("识别中断（" + e.error + "），再点一次继续");
+  r.onend = () => {
+    if (s.dead || s.r !== r) return;               // 旧实例迟到的 end：忽略，不动当前会话
+    if (s.wantStop || s.fatal) { teardownDict(s); return; }
+    if (!s.gotResult && ++s.noResult > 8) { teardownDict(s, "一直没听到声音，识别已停；点按钮可重新开始"); return; }
+    if (s.gotResult) { s.noResult = 0; s.gotResult = false; }
+    launchDict(s);                                 // 浏览器自己断流（静音超时/网络抖动）：换实例自动续听，不打断作答
   };
-  try { await startRec(qi, "语音录入"); } catch (e) { /* 录音失败不阻断识别 */ }
-  try { recog.start(); } catch (e) { recog = null; }
-  updateMicBtns();
-  toast("正在听…开口说英语，说完再点一次结束");
+  try { r.start(); s.started = true; } catch (e) { teardownDict(s, "识别启动失败，再点一次试试"); }
 }
-function stopDict() { if (recog) { try { recog.stop(); } catch (e) {} } }
+async function toggleDict(qi, field) {
+  if (dict) { stopDict(); return; }
+  if (!sttSupported()) { toast("此浏览器不支持语音识别，请用 Chrome 或 Safari 打开"); return; }
+  const base = (state.q[qi][field] || "").trim();
+  const s = dict = { qi, field, base, fin: "", shown: base, r: null, wantStop: false, started: false, dead: false, fatal: false, gotResult: false, noResult: 0 };
+  updateMicBtns();                                 // 点击即刻进入监听态，等麦克风期间按钮不再误导
+  try { await startRec(qi, "语音录入"); } catch (e) { /* 录音失败不阻断识别 */ }
+  if (dict !== s) { stopRec(); return; }           // 等麦克风期间被点停：顺手关掉刚建好的录音
+  launchDict(s);
+  if (!s.dead) toast("正在听…开口说英语，说完再点一次结束");
+}
+function stopDict() {
+  if (!dict) return;
+  const s = dict;
+  s.wantStop = true;
+  if (!s.started || !s.r) { teardownDict(s); return; }   // 尚未 start 就点停：直接收摊
+  try { s.r.stop(); } catch (e) { teardownDict(s); }     // 正常等 onend 收摊（Chrome 会先补最终结果）
+}
 function updateMicBtns() {
   document.querySelectorAll(".mic-btn").forEach(b => {
-    const on = recog && +b.dataset.q === dictQ && b.dataset.f === dictField;
+    const on = dict && +b.dataset.q === dict.qi && b.dataset.f === dict.field;
     b.classList.toggle("listening", on);
     b.textContent = on ? "■ 正在听…（说完点这里）" : b.dataset.label;
   });
