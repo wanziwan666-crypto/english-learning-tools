@@ -190,7 +190,7 @@ async function startRec(qi, label, sess) {
     const mime = ["audio/webm", "audio/mp4"].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
     recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
     recChunks = []; recQ = qi; recLabel = label;
-    recorder.ondataavailable = e => recChunks.push(e.data);
+    recorder.ondataavailable = e => { recChunks.push(e.data); if (sess && sess.sttDead) liveWindow(sess); };
     recorder.onstop = () => {
       stream.getTracks().forEach(t => t.stop());
       const blob = new Blob(recChunks, { type: recorder.mimeType || "audio/webm" });
@@ -198,9 +198,9 @@ async function startRec(qi, label, sess) {
       recorder = null;
       refreshRecs(qi);
       // 浏览器识别整段没出过一个字（服务连不上等）：录音落地即自动本地转写兜底
-      if (sess && !sess.fin.trim() && blob.size > 2000) localStt({ qi: qi, field: sess.field, blob: blob, ent: recs[qi][recs[qi].length - 1] });
+      if (sess && !sess.fin.trim() && blob.size > 2000) localStt({ qi: qi, field: sess.field, blob: blob, ent: recs[qi][recs[qi].length - 1], replaceBase: sess.base });
     };
-    recorder.start();
+    recorder.start(sess ? 4000 : undefined);   // 听写会话切片出 chunk：识别僵死时靠它边说边转
   } catch (e) {
     toast("无法访问麦克风，请检查浏览器权限");
     throw e;
@@ -307,6 +307,39 @@ function updateMicBtns() {
   });
 }
 
+/* ---- 边说边转（仅识别僵死的纯录音模式）：每 4s 的录音切片拼上 webm 初始化段成独立小段，
+   增量转写追加显示；点停后整段重转一遍替换这些临时文字 ---- */
+function webmHeader(blob) {
+  return blob.arrayBuffer().then(buf => {
+    const a = new Uint8Array(buf), m = [0x1F, 0x43, 0xB6, 0x75];   // Cluster 起始 ID
+    for (let i = 0; i + 4 <= a.length; i++)
+      if (a[i] === m[0] && a[i + 1] === m[1] && a[i + 2] === m[2] && a[i + 3] === m[3]) return a.slice(0, i);
+    return null;   // 拆不出初始化段（如 Safari 的 mp4 分片）：放弃边说边转，收尾整段转写仍在
+  });
+}
+async function liveWindow(sess) {
+  if (sess.winBusy || sess.localDead || sess.dead || dict !== sess) return;
+  if (sess.hdr === undefined) sess.hdr = await webmHeader(recChunks[0]);
+  if (!sess.hdr || recChunks.length <= (sess.winIdx || 0)) return;
+  const parts = [sess.hdr];
+  for (let i = sess.winIdx || 0; i < recChunks.length; i++) parts.push(recChunks[i]);
+  sess.winBusy = true;
+  try {
+    const r = await fetch(MB + "/stt", { method: "POST", headers: { "Content-Type": "audio/webm" }, body: new Blob(parts, { type: "audio/webm" }) });
+    const j = await r.json();
+    if (sess.dead || dict !== sess) return;   // 收摊/被替换后迟到的窗口结果：丢弃
+    if (j && j.error) { sess.localDead = true; return; }   // 信箱不可用：停掉边说边转，收尾再试一次
+    sess.winIdx = recChunks.length;
+    const t = ((j && j.text) || "").trim();
+    if (t) {
+      sess.interim = ((sess.interim || "") + " " + t).trim();
+      sess.shown = (sess.base ? sess.base + " " : "") + sess.interim;
+      commitDict(sess);   // 边说边出字（临时），点停后整段重转替换
+    }
+  } catch (e) { sess.localDead = true; }
+  finally { sess.winBusy = false; }
+}
+
 /* ---- 本地转写兜底：浏览器识别拿不到文字时，把录音交给信箱 /stt（本机 faster-whisper，不依赖网络）---- */
 function localStt(item) {
   if (!item || !item.blob) { toast("这段录音已不可用（刷新会丢），重新录一段再试"); return; }
@@ -316,8 +349,8 @@ function localStt(item) {
       if (j && j.error) { toast("本地转写不可用：" + (j.detail || j.error)); return; }
       const t = ((j && j.text) || "").trim();
       if (!t) { toast("本地转写没认出内容（录音太短或太安静）"); return; }
-      const cur = (state.q[item.qi][item.field] || "").trim();
-      state.q[item.qi][item.field] = cur ? cur + " " + t : t;
+      const b0 = item.replaceBase !== undefined ? item.replaceBase.trim() : (state.q[item.qi][item.field] || "").trim();
+      state.q[item.qi][item.field] = b0 ? b0 + " " + t : t;
       save();
       const ta = document.getElementById(item.field + "-" + item.qi);
       if (ta) ta.value = state.q[item.qi][item.field];
