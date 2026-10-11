@@ -77,6 +77,37 @@
   .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1f2933; color: #fff; padding: 9px 20px; border-radius: 99px; font-size: 13px; opacity: 0; transition: opacity .3s; pointer-events: none; }
   .toast.show { opacity: .92; }
 </style>
+<script>
+/* file:// 双击 → 升级到信箱同源地址：Chrome 对 file:// 源不记忆麦克风授权（每次录音都弹窗），
+   对 127.0.0.1 记一次即永久生效。跳转时把本机 localStorage 的作答进度放进 #migrate= 带过去，
+   到达后仅补缺、绝不覆盖已有进度；信箱离线时留在 file:// 原样可用（照旧弹授权窗）。 */
+(function () {
+  var KEY_RE = /^ielts-speaking-[\w-]+-v1$/;
+  if (location.protocol === "file:") {
+    fetch("http://127.0.0.1:8765/ping", { mode: "no-cors" }).then(function () {
+      var payload = {};
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (KEY_RE.test(k)) payload[k] = localStorage.getItem(k);
+      }
+      var name = location.pathname.split("/").pop() || "index.html";
+      var frag = Object.keys(payload).length ? "#migrate=" + encodeURIComponent(JSON.stringify(payload)) : "";
+      if (frag.length > 1000000) frag = "";  // 异常超大时不带进度，保证跳转本身不受 URL 长度拖累
+      location.replace("http://127.0.0.1:8765/" + name + frag);
+    }).catch(function () {});
+    return;
+  }
+  try {
+    if (location.hash.indexOf("#migrate=") === 0) {
+      var data = JSON.parse(decodeURIComponent(location.hash.slice(9)));
+      for (var k in data)
+        if (KEY_RE.test(k) && typeof data[k] === "string" && !localStorage.getItem(k))
+          localStorage.setItem(k, data[k]);
+      history.replaceState(null, "", location.pathname);
+    }
+  } catch (e) {}
+})();
+</script>
 </head>
 <body>
 <div class="wrap">

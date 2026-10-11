@@ -38,7 +38,7 @@ description: 雅思口语题库练习页生成 + 本地信箱批改闭环。当�
    - `__PART_LABEL__`：`Part 1 / Part 2 / Part 3`（题卡标签；Part 2 cue card 讲必改）
    - `__COURSE_LINE__` / `__LESSON_NO__` / `__TOTAL_LESSONS__`
    - `__QUESTIONS_JSON__`：题库数组（schema 见下），用 `json.dumps(questions, ensure_ascii=False, indent=2).replace("</", "<\\/")` 生成后嵌入（`</` 转义防 `</script>` 提前闭合）
-3. 确保信箱服务在跑（见下），`open` 页面交付
+3. 确保信箱服务在跑（见下），`open "http://127.0.0.1:8765/NN-slug.html"` 交付——**别用 file:// 直开**：Chrome 对 file:// 源不记忆麦克风授权（每次录音都弹窗），对 127.0.0.1 记一次永久生效。页面 head 里有升级脚本，用户 file:// 双击也会自动跳到同源 http 并带走 localStorage 进度
 4. **更新 `speaking/index.html` 总目录**：把该讲从灰色待生成卡片换成 `<a class="lesson" href="NN-slug.html">`。目录页是用户的日常入口（不经过对话），漏更新 = 用户以为这讲不存在。新增讲次卡片也照此维护
 
 ### QUESTIONS schema
@@ -63,7 +63,7 @@ highlights 由 AI 从 band7 里挑 2-4 个：优先固定搭配（如 `attention
 
 - 脚本：`~/Desktop/English Writing/speaking/mailbox.py`（skill 的 `assets/mailbox.py` 是母本；目录里没有就拷一份过去。**改了母本后同样要拷过去并重启 launchd 才生效**，流程见下）
 - **已装 LaunchAgent**：`~/Library/LaunchAgents/com.fangyiwan.english-speaking-mailbox.plist`——开机自启 + KeepAlive 崩溃自动拉起，**正常情况下永远在线，没有手动模式**（页面离线时只显示恢复指引 + 重试按钮）
-- 协议：`GET /ping`、`POST /submit`（网页提交作答）、`GET /feedback?ts=`（网页轮询批改）、`POST /grade`（agent 批改写回：追加 feedbacks + 按 ts 删本次处理的 submissions，全部在服务器进程内串行完成——**agent 永远不要直接改写 mailbox.json**，与服务器并发整读整写会互相覆盖、静默丢提交）
+- 协议：`GET /ping`、`POST /submit`（网页提交作答）、`GET /feedback?ts=`（网页轮询批改）、`POST /grade`（agent 批改写回：追加 feedbacks + 按 ts 删本次处理的 submissions，全部在服务器进程内串行完成——**agent 永远不要直接改写 mailbox.json**，与服务器并发整读整写会互相覆盖、静默丢提交）、`GET /` 与 `GET /NN-*.html`（静态托管练习页，同源 http 打开；`Cache-Control: no-store` 就地重生成后浏览器立拿新版；Host 为 localhost 时 302 到 127.0.0.1 统一源，防 localStorage/麦克风授权分裂；只放行目录内扁平 `*.html`，无路径穿越）
 - 数据文件：同目录 `mailbox.json`（`{submissions: […], feedbacks: […]}`）。**网页会拉走全部 feedbacks——测试后必须清掉测试数据或删掉整个 mailbox.json**，否则会污染用户页面
 - 用户说「起信箱 / 信箱掉了 / 信箱离线」时，按序排查：
   1. `curl -s -m 3 http://127.0.0.1:8765/ping` 通了 → 问题在页面侧，让用户刷新
@@ -97,6 +97,6 @@ print(urllib.request.urlopen(req, timeout=5).read().decode())  # {"ok": true, "f
 
 - 语音识别（STT）用浏览器原生 API：Chrome 走 Google 服务需联网；Safari 14.1+ 可用。都不支持时按钮会提示，退化为打字
 - 录音仅会话内存，刷新丢失（答案文本和批改持久化在 localStorage）
-- file:// 协议直接双击打开即可；信箱跨域由 CORS `*` 处理，并带 Origin 校验：curl（无 Origin）与 file:// 页面（`Origin: null`）放行，浏览器里其他网页一律 403——仅监听回环挡不住它们
+- 练习页日常走 `http://127.0.0.1:8765/` 同源打开（麦克风授权 Chrome 只记这一次）。file:// 双击仍可用——页面 head 的升级脚本会在信箱在线时自动跳到 http，跳转把 file:// 侧 localStorage 的作答进度经 `#migrate=` 带过去、仅补缺不覆盖；信箱离线时留在 file:// 原样可练，只是 Chrome 对 file:// 每次录音都重新弹授权窗（Chrome 的既定行为，无解，别再找设置项）。信箱跨域由 CORS `*` 处理，并带 Origin 校验：curl（无 Origin）、file:// 页面（`Origin: null`）与同源 http 页面放行，浏览器里其他网页一律 403——仅监听回环挡不住它们
 - 批改只有一种获取方式：信箱直连。页面离线 = 异常状态（红色指引 + 重试按钮），不要建议手动复制粘贴——用户已明确否决手动模式
 - 自评清单里的「高频复发」项源自该生写作批改记录（冠词、人称漂移、中式直译），口语批改中发现新顽固错误时应建议更新清单

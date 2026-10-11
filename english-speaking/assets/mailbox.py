@@ -4,8 +4,12 @@
 网页 POST 作答到 /submit；AI 把批改经 POST /grade 写回——追加 feedbacks 和
 删已处理 submissions 都在服务器进程内串行完成，agent 不直接改 mailbox.json
 （否则与服务器并发整读整写会互相覆盖，丢提交/丢批改）；网页轮询 /feedback 拉取。
-仅监听 127.0.0.1，无鉴权（本机自用）；Origin 校验放行 curl（无 Origin）与
-file:// 打开的练习页（Origin: null），浏览器里其他网页一律 403。
+同时静态托管同目录练习页（GET / 或 /NN-*.html）：练习页走同源 http 打开——
+Chrome 对 file:// 源不记忆麦克风授权（每次录音都弹窗），对 127.0.0.1 记一次
+即永久生效；Host 为 localhost 时 302 到 127.0.0.1，统一源避免 localStorage
+与授权分裂。仅监听 127.0.0.1，无鉴权（本机自用）；Origin 校验放行 curl（无
+Origin）、file:// 打开的练习页（Origin: null）与同源 http 页面，浏览器里
+其他网页一律 403。
 
 启动：python3 mailbox.py   （端口 8765；日常由 launchd 托管）
 """
@@ -15,7 +19,8 @@ import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlsplit, parse_qs
 
-BOX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mailbox.json")
+BASE = os.path.dirname(os.path.abspath(__file__))
+BOX = os.path.join(BASE, "mailbox.json")
 PORT = 8765
 
 
@@ -47,9 +52,35 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _origin_ok(self):
-        # curl / 同源请求不带 Origin；file:// 页面发 "null"；其余（浏览器里别的网页）拒绝
+        # curl / 同源 GET 导航不带 Origin；file:// 页面发 "null"；同源 http 页面发本机源——
+        # 都放行；其余（浏览器里别的网页）拒绝
         o = self.headers.get("Origin")
-        return o is None or o == "null"
+        return o is None or o == "null" or o in ("http://127.0.0.1:%d" % PORT,
+                                                 "http://localhost:%d" % PORT)
+
+    def _serve_static(self):
+        host = (self.headers.get("Host") or "").split(":")[0]
+        name = urlsplit(self.path).path.lstrip("/") or "index.html"
+        if host == "localhost":  # 统一到 127.0.0.1，localStorage/麦克风授权只记一份
+            self.send_response(302)
+            self.send_header("Location", "http://127.0.0.1:%d/%s" % (PORT, name))
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        # 只放行本目录下扁平的 *.html（练习页 + index），杜绝路径穿越
+        if not (name.endswith(".html") and "/" not in name and not name.startswith(".")):
+            return self._send({"error": "not found"}, 404)
+        try:
+            with open(os.path.join(BASE, name), "rb") as f:
+                body = f.read()
+        except OSError:
+            return self._send({"error": "not found"}, 404)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")  # agent 会就地重生成页面，别让浏览器拿旧版
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_OPTIONS(self):
         if not self._origin_ok():
@@ -72,7 +103,7 @@ class Handler(BaseHTTPRequestHandler):
                 after = 0.0
             self._send([fb for fb in read_box()["feedbacks"] if fb.get("ts", 0) > after])
         else:
-            self._send({"error": "not found"}, 404)
+            self._serve_static()
 
     def do_POST(self):
         if not self._origin_ok():
