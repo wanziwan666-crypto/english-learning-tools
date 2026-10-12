@@ -12,8 +12,8 @@ description: "雅思写作练习系统：两个入口 —— (1) 范文收录：
 - **Python 3**：用脚本把 JSON 注入 HTML 模板（避免手工转义出错）。
 - **浏览器**：生成的 HTML 用浏览器打开即可交互。
 - **本 skill 目录**：脚本与模板都相对 `SKILL.md` 所在目录定位，不要写死绝对路径。
-- **生成文件目录**：`~/Desktop/English Writing/`，按类型分子目录：`essays/` 范文阅读页（含 `my-library.html` 素材库浏览页）、`corrections/` 批改页、`writing/` 独立写作页；进度汇总 `review-corrections.html` 固定在根目录（每次删旧建新）。
-- **目录骨架懒创建（每次会话开始先做，幂等）**：skill 安装只是复制文件、不会执行任何代码，所以「安装即有目录」落地为——**每次 english-writing 会话开始（无论用户来干什么，批改/收录/看库都算）**先跑一句，首次安装后的第一次会话就把 `English Writing` 文件夹连子目录建好，用户无需手动创建：
+- **生成文件目录**：`~/Desktop/English Learning/`，按类型分子目录：`essays/` 范文阅读页（含 `my-library.html` 素材库浏览页）、`corrections/` 批改页、`writing/` 独立写作页；进度汇总 `review-corrections.html` 固定在根目录（每次删旧建新）。
+- **目录骨架懒创建（每次会话开始先做，幂等）**：skill 安装只是复制文件、不会执行任何代码，所以「安装即有目录」落地为——**每次 english-writing 会话开始（无论用户来干什么，批改/收录/看库都算）**先跑一句，首次安装后的第一次会话就把 `English Learning` 文件夹连子目录建好，用户无需手动创建：
   ```bash
   mkdir -p ~/Desktop/English\ Writing/{essays,corrections,writing}
   ```
@@ -126,8 +126,8 @@ python3 "<skill>/scripts/build_reader.py" --data-file /tmp/english-<slug>-reader
    按钮（**阅读页/合集页顶栏主按钮**）就是导入意图。
    点击会汇总**所有页面**划过的词（file:// 共享 localStorage，不只当前篇）下载
    `writing-wordbank-export.txt`。保存对话框默认停在哪是浏览器自己的记忆，页面无法指定
-   （沙箱限制）；用户应存进 `~/Desktop/English Writing/`。任何会话开始（批改/收录/看库，
-   无论用户来干什么）先查（主位置 English Writing，`~/Downloads` 兜底——浏览器不弹窗
+   （沙箱限制）；用户应存进 `~/Desktop/English Learning/`。任何会话开始（批改/收录/看库，
+   无论用户来干什么）先查（主位置 English Learning，`~/Downloads` 兜底——浏览器不弹窗
    直落下载文件夹时也能拾取）：
    ```bash
    ls -t ~/Desktop/English\ Writing/writing-wordbank-export.txt ~/Downloads/writing-wordbank-export.txt 2>/dev/null | head -1
@@ -149,7 +149,7 @@ python3 "<skill>/scripts/build_reader.py" --data-file /tmp/english-<slug>-reader
    刷新 my-library.html → 删清单），完成后向用户提一句结果。
 1. 口令「导入素材库」仍然有效：用户说了就立即执行同一流程（不看 state，强制重扫）。
 2. 完全找不到导出文件时才提示用户：打开任意阅读页点「导入素材库」，保存进
-   `~/Desktop/English Writing/`。这一 click 无法省略：浏览器沙箱不允许页面悄悄写磁盘，agent 也读不到
+   `~/Desktop/English Learning/`。这一 click 无法省略：浏览器沙箱不允许页面悄悄写磁盘，agent 也读不到
    浏览器内部存储，localStorage → 磁盘文件必须经用户之手（阅读 skill 的「导出词本」
    按钮同理）。不要退回让用户手动复制粘贴。
 
@@ -193,7 +193,7 @@ python3 "<skill>/scripts/build_reader.py" --data-file /tmp/english-<slug>-reader
 
 6. **删减素材库（浏览页删除模式）**：`my-library.html` 顶栏「🗑 删除模式」进入——词条打 ✕、
    组头「🗑 删整组」，再点一次撤销，标记只在当前页面内存里（刷新即清）。标完点
-   「⬇ 导出删除清单」下载 `writing-library-deletions.json`（固定名，存 English Writing，
+   「⬇ 导出删除清单」下载 `writing-library-deletions.json`（固定名，存 English Learning，
    提示「替换」时选替换）。应用走 `apply_library_deletions.py`（会话开始自动查，见上；
    口令「应用删除」「删减素材库」立即执行）：
    - 整组：组名归一化精确匹配，整组删除；
@@ -286,7 +286,7 @@ python3 "<skill>/scripts/build_correction_review.py"
 ```
 - 数据源是 `~/Documents/english-writing/corrections-log.jsonl`（每次批改由 build_correction.py 自动追加，含批注明细）——log 是数据，HTML 是渲染产物，不要从批改页反解数据
 - 兜底：log 功能上线前生成的旧批改页会被扫描收录，时间线取文件修改时间
-- 输出 `~/Desktop/English Writing/review-corrections.html`（根目录，不进 corrections/；
+- 输出 `~/Desktop/English Learning/review-corrections.html`（根目录，不进 corrections/；
   每次删掉上一份再生成，任一时刻只有最新一份）：
   - 分数折线图（Overall / TA / CC / LR / GRA；Chart.js 走 CDN，离线时自动降级，数据以下方表格为准）
   - 高频问题统计：error 批注按雅思评分维度归类（GRA 语法 / LR 词汇 / CC 结构衔接 / TA 任务回应）
@@ -322,7 +322,7 @@ python3 "<skill>/scripts/build_correction_review.py"
 - `build_library_view.py`：素材库 → `my-library.html` 浏览页（library.json 渲染：组/词统计、
   搜索、「⬇ 下载素材库」备份、删除模式标记与清单导出），`--out` 可指定路径。划词汇总入口在阅读页按钮，不在本页。
 - `apply_library_deletions.py`：应用浏览页删除模式导出的 `writing-library-deletions.json`
-  （缺省自动搜 English Writing / Downloads 两处取最新）：备份 `library.json.bak` → 删整组/删词条
+  （缺省自动搜 English Learning / Downloads 两处取最新）：备份 `library.json.bak` → 删整组/删词条
   → 清空组 → 刷新 my-library.html → 删清单；`--file` 指定路径，`--dry-run` 预览不动盘。
 - `validate_data.py`：`--kind reader|correction` 生成前校验（批注是否在对应段落、分数是否 0-9、同段批注片段是否被更长片段整段覆盖而渲染成「未定位」）。
 - `build_correction_review.py`：读批改 log（旧 HTML 兜底，`--dir`/`--out` 可选）→ 生成进度汇总（分数折线图 + 按评分维度的问题统计 + 按错误类型的高频错误清单，每类折叠展开全部实例）。

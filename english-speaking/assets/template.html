@@ -458,7 +458,7 @@ function render() {
         ? '<div class="note" style="margin-top:8px;color:#b45309">⏳ 已提交，等 AI 批改中——回对话里说「批」，批改会自动出现在这里</div>'
         : '<div class="tts"><button class="primary" onclick="submitToAI(' + i + ')">🤖 交 AI 批改本题</button></div><div class="note">点击后回对话说「批」，几秒后批改自动落在本题下方，无需复制粘贴</div>';
     } else {
-      html += '<div class="note" style="margin-top:8px;color:#b3261e">⚠ 信箱服务离线，批改直连暂不可用。恢复：回 AI 对话说「起信箱」，或终端运行 python3 "Desktop/English Writing/speaking/mailbox.py"（服务通常由系统常驻托管，很少离线）</div><div class="tts"><button onclick="retryMb()">重试连接</button></div>';
+      html += '<div class="note" style="margin-top:8px;color:#b3261e">⚠ 信箱服务离线，批改直连暂不可用。恢复：回 AI 对话说「起信箱」，或终端运行 python3 "Desktop/English Learning/speaking/mailbox.py"（服务通常由系统常驻托管，很少离线）</div><div class="tts"><button onclick="retryMb()">重试连接</button></div>';
     }
     if (d.feedback) html += '<div id="fb-' + i + '"><b style="font-size:12.5px;color:#2456d6">已保存的批改</b>' + fbHtml(d.feedback) + "</div>";
     html += "</div>";

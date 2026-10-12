@@ -13,7 +13,7 @@ from datetime import datetime
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE = SKILL_DIR / "templates" / "review-corrections.html"
-DEFAULT_DIR = Path.home() / "Desktop" / "English Writing"
+DEFAULT_DIR = Path.home() / "Desktop" / "English Learning"
 # 汇总页放根目录（不进 corrections/），且每次都是删旧建新 —— 用户只关心最新状态
 DEFAULT_OUT = DEFAULT_DIR / "review-corrections.html"
 LOG_FILE = Path.home() / "Documents" / "english-writing" / "corrections-log.jsonl"

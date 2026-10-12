@@ -8,7 +8,7 @@
 python3 <skill目录>/english-speaking/assets/ingest.py <文档路径>
 ```
 
-- dump 默认落 `~/Desktop/English Writing/speaking/sources/<原文件名>.txt`——**溯源**：以后核对任何一题都要能回到这份原文，别删
+- dump 默认落 `~/Desktop/English Learning/speaking/sources/<原文件名>.txt`——**溯源**：以后核对任何一题都要能回到这份原文，别删
 - 脚本 ❌（exit 1）时把 stderr 建议原样转述给用户，**禁止绕过闸门硬编题目**——扫描版被拒是特性不是 bug
 - stderr 统计里英文词数异常低（如 < 200）时，先抽查 dump 头尾确认没提坏再继续
 
@@ -28,7 +28,7 @@ python3 <skill目录>/english-speaking/assets/ingest.py <文档路径>
 
 ## Step 3 · 对照讲次，列清单让用户选（第 0 步哲学的文档版）
 
-1. 读 `~/Desktop/English Writing/speaking/index.html` 的讲次卡片，与文档主题模糊匹配：英文词干有实词重叠（`Singing`≈`sing`、`Parks and gardens`≈`park`）或中文标题相同即算命中
+1. 读 `~/Desktop/English Learning/speaking/index.html` 的讲次卡片，与文档主题模糊匹配：英文词干有实词重叠（`Singing`≈`sing`、`Parks and gardens`≈`park`）或中文标题相同即算命中
 2. 输出三栏清单：
    - **已匹配**：给讲次号 NN，标注该讲当前是待生成还是已生成
    - **文档多出**：index 没有的新主题 → 追加 30+ 新卡片（NN = 现有最大号 +1 递增，slug 按英文主题生成且不得与现有 `NN-*.html` 撞名）

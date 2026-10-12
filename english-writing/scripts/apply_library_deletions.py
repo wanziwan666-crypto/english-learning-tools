@@ -2,7 +2,7 @@
 """Apply the deletion list exported from my-library.html 删除模式.
 
 Reads writing-library-deletions.json (--file, else auto-searched in
-~/Desktop/English Writing/ and ~/Downloads, newest wins), backs up
+~/Desktop/English Learning/ and ~/Downloads, newest wins), backs up
 library.json → library.json.bak (one generation), removes the marked
 groups/terms (a term whose named group no longer matches falls back to a
 unique global match), drops groups left empty, refreshes my-library.html,
@@ -13,7 +13,7 @@ from pathlib import Path
 
 LIB = Path.home() / "Documents" / "english-writing" / "library.json"
 CANDIDATES = [
-    Path.home() / "Desktop" / "English Writing" / "writing-library-deletions.json",
+    Path.home() / "Desktop" / "English Learning" / "writing-library-deletions.json",
     Path.home() / "Downloads" / "writing-library-deletions.json",
 ]
 
@@ -34,7 +34,7 @@ def find_file(explicit):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--file", help="删除清单路径（缺省自动搜索 English Writing / Downloads 两处取最新）")
+    ap.add_argument("--file", help="删除清单路径（缺省自动搜索 English Learning / Downloads 两处取最新）")
     ap.add_argument("--lib", help=argparse.SUPPRESS)  # 测试用：覆盖库路径
     ap.add_argument("--no-refresh", action="store_true", help="不刷新 my-library.html（测试用）")
     ap.add_argument("--keep-file", action="store_true", help="应用后保留清单文件（测试用）")

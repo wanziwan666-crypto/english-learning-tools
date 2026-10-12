@@ -61,7 +61,7 @@
 雅思口语题库练习页生成 + 本地信箱批改闭环，口语线独立无依赖：每讲一个单文件练习页（语音转文字作答、两轮打磨、自评清单、Band 7 目标样例高亮、TTS 朗读、跟读录音），launchd 常驻本地信箱（127.0.0.1:8765）实现「网页提交作答 → 对话里说『批』→ 批改自动回流网页」，无手动复制粘贴模式。
 
 - 输入：课程系统题库 / 用户给的题目（「生成口语第 N 讲网页」）/ PDF·Word 题库文档（ingest.py 抽取 → 对照讲次清单出题，见 references/ingest.md）；批改触发词「批」
-- 输出（`~/Desktop/English Writing/speaking/`）：`NN-slug.html` 单文件 + `index.html` 总目录 + launchd 信箱服务
+- 输出（`~/Desktop/English Learning/speaking/`）：`NN-slug.html` 单文件 + `index.html` 总目录 + launchd 信箱服务
 
 ## 安装
 
@@ -74,7 +74,7 @@ git clone https://github.com/wanziwan666-crypto/english-learning-tools.git \
 
 六个 skill 保持 `english-learning-tools/<skill>/` 的兄弟布局 —— `import_review_vocab.py` 靠相对路径找 `vocab-drill/vocab.mjs`，必须整套安装这个桥才通。
 
-skill 安装本身不执行任何代码：english-writing 的产出目录 `~/Desktop/English Writing/`（含 `essays/`、`corrections/`、`writing/` 子目录）、english-reading-exercises 的 `~/Desktop/English Learning/articles/`、english-economist 的 `~/Desktop/English Learning/economist/` 都会在安装后的第一次 skill 会话里由 agent 自动创建，无需手动建目录。
+skill 安装本身不执行任何代码：english-writing 的产出目录 `~/Desktop/English Learning/`（含 `essays/`、`corrections/`、`writing/` 子目录）、english-reading-exercises 的 `~/Desktop/English Learning/articles/`、english-economist 的 `~/Desktop/English Learning/economist/` 都会在安装后的第一次 skill 会话里由 agent 自动创建，无需手动建目录。
 
 ## 更新
 

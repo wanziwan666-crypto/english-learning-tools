@@ -7,7 +7,7 @@ description: 雅思口语题库练习页生成 + 本地信箱批改闭环。当�
 
 ## 全景
 
-用户在 `~/Desktop/English Writing/speaking/` 下维护一组单文件练习页（每讲一个 HTML）+ 一个共享信箱服务 + 一个 `index.html` 总目录（用户的日常入口：29 讲清单、已生成/待生成状态、信箱在线徽章）。分工：**网页负责练（高频、离线、语音），对话里的 AI 负责批（个性化反馈经信箱自动回流网页）**。这个分工是用户三轮反馈打磨出来的结论，不要动摇：
+用户在 `~/Desktop/English Learning/speaking/` 下维护一组单文件练习页（每讲一个 HTML）+ 一个共享信箱服务 + 一个 `index.html` 总目录（用户的日常入口：29 讲清单、已生成/待生成状态、信箱在线徽章）。分工：**网页负责练（高频、离线、语音），对话里的 AI 负责批（个性化反馈经信箱自动回流网页）**。这个分工是用户三轮反馈打磨出来的结论，不要动摇：
 
 1. 不接外部 LLM API——要 key、非离线，批改质量不如直接回对话
 2. 页内只放「题库样例」和「Band 7 目标样例」，**针对学生的批改只从信箱来**——页内任何内容都不许冒充批改结果
@@ -19,7 +19,7 @@ description: 雅思口语题库练习页生成 + 本地信箱批改闭环。当�
 
 用户通常不知道有哪些讲、哪些已生成。触发生成时**必须先列清单**，不要凭空猜测讲次：
 
-1. 扫描 `~/Desktop/English Writing/speaking/` 下已有的 `NN-*.html`（index.html 除外）
+1. 扫描 `~/Desktop/English Learning/speaking/` 下已有的 `NN-*.html`（index.html 除外）
 2. 与全集对照（读 `index.html` 的讲次卡片，或课程系统 `course-edit_read`），输出「已生成 / 待生成」两栏清单，让用户挑
 3. 用户只说「下一讲」时，取已生成讲次的最大号 +1
 4. 用户给文档（PDF/Word 等）时，清单步骤换成 `references/ingest.md` Step 3 的文档主题对照清单（先抽取拆题，再列「已匹配 / 文档多出 / index 有文档没有」三栏）
@@ -31,7 +31,7 @@ description: 雅思口语题库练习页生成 + 本地信箱批改闭环。当�
 
 ### 步骤
 
-1. 复制 `assets/template.html` 到 `~/Desktop/English Writing/speaking/NN-slug.html`（NN=两位讲次号，如 `02-tidiness.html`）
+1. 复制 `assets/template.html` 到 `~/Desktop/English Learning/speaking/NN-slug.html`（NN=两位讲次号，如 `02-tidiness.html`）
 2. 替换 7 个占位符：
    - `<title>` 与 `<h1>` 里的 `__LESSON_TITLE__`（如 `Part 1 · Tidiness 整洁`）
    - `__LESSON_ID__`：`L{NN}-{slug}`（如 `L02-tidiness`），必须全系列唯一——它是 localStorage key 和信箱路由的派生源
@@ -61,7 +61,7 @@ highlights 由 AI 从 band7 里挑 2-4 个：优先固定搭配（如 `attention
 
 ## 二、信箱服务（launchd 常驻）
 
-- 脚本：`~/Desktop/English Writing/speaking/mailbox.py`（skill 的 `assets/mailbox.py` 是母本；目录里没有就拷一份过去。**改了母本后同样要拷过去并重启 launchd 才生效**，流程见下）
+- 脚本：`~/Desktop/English Learning/speaking/mailbox.py`（skill 的 `assets/mailbox.py` 是母本；目录里没有就拷一份过去。**改了母本后同样要拷过去并重启 launchd 才生效**，流程见下）
 - **已装 LaunchAgent**：`~/Library/LaunchAgents/com.fangyiwan.english-speaking-mailbox.plist`——开机自启 + KeepAlive 崩溃自动拉起，**正常情况下永远在线，没有手动模式**（页面离线时只显示恢复指引 + 重试按钮）
 - 协议：`GET /ping`、`POST /submit`（网页提交作答）、`GET /feedback?ts=`（网页轮询批改）、`POST /grade`（agent 批改写回：追加 feedbacks + 按 ts 删本次处理的 submissions，mailbox.json 的读改写全在 `_BOX_LOCK` 内串行完成——**agent 永远不要直接改写 mailbox.json**，与服务器并发整读整写会互相覆盖、静默丢提交）、`POST /stt`（本地语音转文字兜底：body 为浏览器识别失败时上传的录音裸字节 webm/mp4，服务器用 faster-whisper small int8 CPU 本地转写返回 `{ok, text}`，不依赖网络；模型懒加载常驻，`_STT_LOCK` 串行排队；未装 faster-whisper 或模型未缓存返回 503+原因，页面 toast 提示回对话说一声（依赖随 english-shadowing skill 装的 faster-whisper 与 ~/.cache/huggingface 缓存模型；缺了只影响 /stt，其余端点不受影响）。服务器是多线程 ThreadingHTTPServer——转写要跑几十秒，不能堵 /ping、/feedback）、`GET /` 与 `GET /NN-*.html`（静态托管练习页，同源 http 打开；`Cache-Control: no-store` 就地重生成后浏览器立拿新版；Host 为 localhost 时 302 到 127.0.0.1 统一源，防 localStorage/麦克风授权分裂；只放行目录内扁平 `*.html`，无路径穿越）
 - 数据文件：同目录 `mailbox.json`（`{submissions: […], feedbacks: […]}`）。**网页会拉走全部 feedbacks——测试后必须清掉测试数据或删掉整个 mailbox.json**，否则会污染用户页面

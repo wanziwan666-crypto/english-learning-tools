@@ -24,14 +24,14 @@ from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE = SKILL_DIR / "templates" / "collection.html"
-OUT_DIR = Path.home() / "Desktop" / "English Writing" / "essays"
+OUT_DIR = Path.home() / "Desktop" / "English Learning" / "essays"
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", help="JSON string of collection data")
     ap.add_argument("--data-file", help="path to JSON file of collection data")
-    ap.add_argument("--out", help="output HTML path (默认 ~/Desktop/English Writing/essays/<id>-reader.html)")
+    ap.add_argument("--out", help="output HTML path (默认 ~/Desktop/English Learning/essays/<id>-reader.html)")
     args = ap.parse_args()
 
     data = json.loads(Path(args.data_file).read_text("utf-8")) if args.data_file else json.loads(args.data)

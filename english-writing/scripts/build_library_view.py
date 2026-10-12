@@ -9,10 +9,10 @@ import argparse, json
 from pathlib import Path
 
 LIB = Path.home() / "Documents" / "english-writing" / "library.json"
-DEFAULT_OUT = Path.home() / "Desktop" / "English Writing" / "essays" / "my-library.html"
+DEFAULT_OUT = Path.home() / "Desktop" / "English Learning" / "essays" / "my-library.html"
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--out", help="output HTML path (default: ~/Desktop/English Writing/essays/my-library.html)")
+ap.add_argument("--out", help="output HTML path (default: ~/Desktop/English Learning/essays/my-library.html)")
 args = ap.parse_args()
 OUT = Path(args.out) if args.out else DEFAULT_OUT
 
@@ -210,7 +210,7 @@ document.getElementById('del-clear').addEventListener('click', ()=>{
 });
 
 // 导出删除清单：固定文件名 writing-library-deletions.json，
-// 保存进「English Writing」文件夹后由 apply_library_deletions.py 应用
+// 保存进「English Learning」文件夹后由 apply_library_deletions.py 应用
 $delExport.addEventListener('click', function(){
   const groups = [...markedGroups].filter(g=>g!=='');
   const terms = [...markedTerms].map(k=>{
@@ -225,7 +225,7 @@ $delExport.addEventListener('click', function(){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function(){ URL.revokeObjectURL(a.href); }, 5000);
   $delNote.hidden = false;
-  $delNote.textContent = '✓ 删除清单已下载（'+groups.length+' 组 + '+terms.length+' 词）——保存到「English Writing」文件夹（提示「替换」时选替换），下次会话自动应用；或回对话说「应用删除」立即生效。';
+  $delNote.textContent = '✓ 删除清单已下载（'+groups.length+' 组 + '+terms.length+' 词）——保存到「English Learning」文件夹（提示「替换」时选替换），下次会话自动应用；或回对话说「应用删除」立即生效。';
   const btn = this, old = btn.textContent;
   btn.textContent = '✓ 已导出';
   setTimeout(function(){ btn.textContent = old; }, 3000);

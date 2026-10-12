@@ -9,7 +9,7 @@ from pathlib import Path
 SKILL_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE = SKILL_DIR / "templates" / "correction.html"
 WRITER_TEMPLATE = SKILL_DIR / "templates" / "writer.html"
-OUT_DIR = Path.home() / "Desktop" / "English Writing" / "corrections"
+OUT_DIR = Path.home() / "Desktop" / "English Learning" / "corrections"
 LOG_FILE = Path.home() / "Documents" / "english-writing" / "corrections-log.jsonl"
 
 

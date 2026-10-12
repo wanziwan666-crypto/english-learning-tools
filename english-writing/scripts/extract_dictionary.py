@@ -12,7 +12,7 @@ their single dictionary; collection pages contribute every essay inside.
 import json, re, sys, argparse, glob
 from pathlib import Path
 
-ESSAYS_DIR = Path.home() / "Desktop" / "English Writing" / "essays"
+ESSAYS_DIR = Path.home() / "Desktop" / "English Learning" / "essays"
 
 
 def extract_data(html_text):

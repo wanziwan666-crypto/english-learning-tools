@@ -2,7 +2,7 @@
 """文档题库 → 纯文本抽取（文档出题第一步，机械活；拆题/对照讲次/出题是 agent 的判断活，见 references/ingest.md）。
 
 用户给 pdf/docx/doc/rtf/html/txt/md 题库文档时跑本脚本，产出干净文本 dump，
-默认落 ~/Desktop/English Writing/speaking/sources/<原文件名>.txt（溯源：任何一题都能回指原文）。
+默认落 ~/Desktop/English Learning/speaking/sources/<原文件名>.txt（溯源：任何一题都能回指原文）。
 
 - PDF → pymupdf 逐页 get_text(sort=True)（防双栏串行）→ pypdf 兜底，带 ===== PAGE N ===== 标记
 - docx → stdlib zipfile+XML 逐段抽取（表格题库每格自成行，首选）→ textutil 兜底
@@ -16,7 +16,7 @@ import argparse, re, subprocess, sys
 from pathlib import Path
 
 SUPPORTED = {".pdf", ".doc", ".docx", ".rtf", ".html", ".htm", ".txt", ".md", ".markdown"}
-SOURCES_DIR = Path.home() / "Desktop/English Writing/speaking/sources"
+SOURCES_DIR = Path.home() / "Desktop/English Learning/speaking/sources"
 EXT_HINTS = {
     ".pages": "Pages 文件请先在 Pages 里导出为 docx 或 PDF 再提供",
     ".ppt": "PPT 请先导出为 PDF 再提供", ".pptx": "PPT 请先导出为 PDF 再提供",
