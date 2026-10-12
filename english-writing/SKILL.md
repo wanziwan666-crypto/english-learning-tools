@@ -15,7 +15,7 @@ description: "雅思写作练习系统：两个入口 —— (1) 范文收录：
 - **生成文件目录**：`~/Desktop/English Learning/`，按类型分子目录：`essays/` 范文阅读页（含 `my-library.html` 素材库浏览页）、`corrections/` 批改页、`writing/` 独立写作页；进度汇总 `review-corrections.html` 固定在根目录（每次删旧建新）。
 - **目录骨架懒创建（每次会话开始先做，幂等）**：skill 安装只是复制文件、不会执行任何代码，所以「安装即有目录」落地为——**每次 english-writing 会话开始（无论用户来干什么，批改/收录/看库都算）**先跑一句，首次安装后的第一次会话就把 `English Learning` 文件夹连子目录建好，用户无需手动创建：
   ```bash
-  mkdir -p ~/Desktop/English\ Writing/{essays,corrections,writing}
+  mkdir -p ~/Desktop/English\ Learning/{essays,corrections,writing}
   ```
   各 build 脚本对输出路径另有 `mkdir -p` 兜底，双保险。
 
@@ -68,7 +68,7 @@ agent 在对话里收到用户粘贴的内容时：
 ### Step 3：生成阅读页（build_reader.py）
 把上面的 JSON 写入 `/tmp/english-<slug>-reader.json`，然后：
 ```bash
-python3 "<skill>/scripts/build_reader.py" --data-file /tmp/english-<slug>-reader.json --out ~/Desktop/English\ Writing/essays/<slug>-reader.html
+python3 "<skill>/scripts/build_reader.py" --data-file /tmp/english-<slug>-reader.json --out ~/Desktop/English\ Learning/essays/<slug>-reader.html
 ```
 脚本把数据注入 `templates/reader.html`（`{{READER_DATA_JSON}}` 占位），写出自包含 HTML。用 `present_files` 或告知路径，让用户在浏览器打开。
 
@@ -109,7 +109,7 @@ python3 "<skill>/scripts/build_reader.py" --data-file /tmp/english-<slug>-reader
    - `content` 题目放开头 `<blockquote>`、正文一段一个 `<p>`；`(295 words, band 9)` 这类尾注移进该篇 `source`（目录卡片上显示），不进正文。
    - 篇数多时先把各篇分给并行子代理生成（各写各的 JSON），再合并成 `essays` 数组。
    ```bash
-   python3 "<skill>/scripts/build_collection.py" --data-file /tmp/english-<slug>-collection.json --out ~/Desktop/English\ Writing/essays/<slug>-reader.html
+   python3 "<skill>/scripts/build_collection.py" --data-file /tmp/english-<slug>-collection.json --out ~/Desktop/English\ Learning/essays/<slug>-reader.html
    ```
    产物是**一个**自包含 HTML：打开先是目录，点任意篇进入阅读（URL `#e=<篇id>` 可直达/收藏），「目录」按钮或篇末「目录」返回，底部「上一篇 / 下一篇」顺序刷。每篇词典与单词本独立，划词收录行为与单篇范文完全一致。脚本自带校验（必填字段 + id 唯一）。
 
@@ -130,7 +130,7 @@ python3 "<skill>/scripts/build_reader.py" --data-file /tmp/english-<slug>-reader
    无论用户来干什么）先查（主位置 English Learning，`~/Downloads` 兜底——浏览器不弹窗
    直落下载文件夹时也能拾取）：
    ```bash
-   ls -t ~/Desktop/English\ Writing/writing-wordbank-export.txt ~/Downloads/writing-wordbank-export.txt 2>/dev/null | head -1
+   ls -t ~/Desktop/English\ Learning/writing-wordbank-export.txt ~/Downloads/writing-wordbank-export.txt 2>/dev/null | head -1
    ```
    固定文件名、不用通配符（本机 zsh 下 glob 无匹配会中止整条命令，`||` 兜底也不执行）；
    两处按 mtime 全局取最新。浏览器提示「替换」时选替换，避免出现 ` (1)` 副本被漏拾取。
@@ -143,7 +143,7 @@ python3 "<skill>/scripts/build_reader.py" --data-file /tmp/english-<slug>-reader
    「 (1)」/变体名副本。口令触发的强制重扫（下条）同样删。文件不存在 = 无待导入，正常态。
    会话开始顺手同查**删除清单**（浏览页删除模式导出的，存在即应用）：
    ```bash
-   ls -t ~/Desktop/English\ Writing/writing-library-deletions.json ~/Downloads/writing-library-deletions.json 2>/dev/null | head -1
+   ls -t ~/Desktop/English\ Learning/writing-library-deletions.json ~/Downloads/writing-library-deletions.json 2>/dev/null | head -1
    ```
    命中即静默跑 `apply_library_deletions.py`（自动找同两处最新文件：备份 → 删组删词 →
    刷新 my-library.html → 删清单），完成后向用户提一句结果。
@@ -225,7 +225,7 @@ python3 "<skill>/scripts/import_vocab_drill.py"          # 加 --dry-run 可先�
 ```
 `minutes` 只是弹窗的预填默认值（首次打开时用；之后记住上次选择，localStorage）。
 ```bash
-python3 "<skill>/scripts/build_writer.py" --data '<上面的 JSON>' --out ~/Desktop/English\ Writing/writing/<slug>-writer.html
+python3 "<skill>/scripts/build_writer.py" --data '<上面的 JSON>' --out ~/Desktop/English\ Learning/writing/<slug>-writer.html
 ```
 写作页内置：题目展示、打开时弹窗自选倒计时时长（快捷 20/40/45/60 分钟或自定义，确认后才开始计时；计时中可「改时间」/暂停/重置）、文本框、字数与段落数实时统计、「提交」按钮（复制作文到剪贴板，格式以 `[English 作文]` 开头含 `essay:` 块）。用户写完粘贴回对话框 → 走下方批改。
 
@@ -272,7 +272,7 @@ python3 "<skill>/scripts/manage_library.py" --print
 先写 `/tmp/english-<slug>-correction.json`（**必须用 `--data-file`**：作文里的撇号会截断 shell 单引号），校验后生成：
 ```bash
 python3 "<skill>/scripts/validate_data.py" --kind correction --data-file /tmp/english-<slug>-correction.json
-python3 "<skill>/scripts/build_correction.py" --data-file /tmp/english-<slug>-correction.json --out ~/Desktop/English\ Writing/corrections/<slug>-correction.html
+python3 "<skill>/scripts/build_correction.py" --data-file /tmp/english-<slug>-correction.json --out ~/Desktop/English\ Learning/corrections/<slug>-correction.html
 ```
 模板渲染：左侧作文正文（按段，annotations 片段高亮、悬停/点击看批注），右侧批注栏（按段分组，含 band 标签与建议 chip），顶部四项分数 + 总评，底部「在原文基础上修改 / 重写」两种重写模式（带 `topic` 打开写作模板进入新一轮）。页面最底部另有跨批改页的 上一篇/下一篇 导航（`*-correction.html` 按首次创建排序，建页时自动刷新，见 `refresh_nav.py`）。
 

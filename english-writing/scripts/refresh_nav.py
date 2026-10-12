@@ -5,8 +5,8 @@
 独立静态 HTML，互相不知道对方存在。本脚本给一个目录里所有匹配页面注入 /
 刷新底部导航条，由各 build 脚本在建页后自动调用，也可以单独跑：
 
-    python3 refresh_nav.py --dir ~/Desktop/English\ Writing/essays --pattern '*-reader.html'
-    python3 refresh_nav.py --dir ~/Desktop/English\ Writing/corrections --pattern '*-correction.html'
+    python3 refresh_nav.py --dir ~/Desktop/English\ Learning/essays --pattern '*-reader.html'
+    python3 refresh_nav.py --dir ~/Desktop/English\ Learning/corrections --pattern '*-correction.html'
 
 顺序钉在 <dir>/.nav-order.json（文件名数组 = 创建顺序）：
 - 磁盘上有但清单里没有 → 新页面，按 mtime 追加到末尾；
