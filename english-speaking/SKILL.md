@@ -29,6 +29,8 @@ description: 雅思口语题库练习页生成 + 本地信箱批改闭环。当�
 2. 用户直接给的题目/范文
 3. **PDF/Word 题库文档**（pdf/docx/doc/rtf/html/txt/md）：`assets/ingest.py` 机械抽取 + `references/ingest.md` 流程（**必须先读它**）——自包含能力，不依赖课程系统；用户直接给文档路径时优先走这条
 
+**代拟记录（2026-10-13）**：20-29 讲原只有 Part 2 cue card 单题，用户要求补齐「Part 2 + Part 3 追问」多题口径（对齐 46-90）；题库三来源均无这些话题的 Part 3 题，经用户确认按 46-90 风格 AI 代拟——每讲 3 题（sample 朴素 4-5 句、band7 口语升级、hints 2 条中文夹英文、highlights 2-4 个子串精确落 band7），cue card 与范文仍为题库原文。页内 QUESTIONS 块上方有 `/* 本讲第 2-4 题为 Part 3 追问，AI 代拟（2026-10-13…）*/` 注释标记；批改/口径讨论引用这些题时须知其非题库原文。
+
 ### 步骤
 
 1. 复制 `assets/template.html` 到 `~/Desktop/English Learning/speaking/NN-slug.html`（NN=两位讲次号，如 `02-tidiness.html`）
