@@ -52,12 +52,6 @@
   .hl-notes { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #cde8d6; font-size: 13px; }
   .hl-notes li { margin: 3px 0; list-style: none; }
   .hl-notes b { color: #147d43; font-family: Georgia, serif; }
-  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; margin-top: 6px; }
-  @media (max-width: 680px) { .checks { grid-template-columns: 1fr; } }
-  .checks h5 { grid-column: 1/-1; margin: 8px 0 0; font-size: 12.5px; color: #2456d6; letter-spacing: .5px; }
-  .checks label { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; cursor: pointer; padding: 3px 6px; border-radius: 6px; }
-  .checks label:hover { background: #f0f4ff; }
-  .checks input { margin-top: 5px; accent-color: #2456d6; }
   .rec-sec { background: #fbfbfc; border: 1px dashed #d4dbe4; border-radius: 10px; padding: 12px 16px; margin-top: 14px; }
   .rec-list { margin-top: 10px; }
   .rec-item { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 13px; }
@@ -113,7 +107,7 @@
 <body>
 <div class="wrap">
   <h1>__LESSON_TITLE__</h1>
-  <div class="sub" id="submeta">雅思口语 · 两轮打磨：第一遍自答 → 对照样例自评 → 第二遍修改 → Band 7 目标样例</div>
+  <div class="sub" id="submeta">雅思口语 · 两轮打磨：第一遍作答 → AI 批改 → 按批改练第二遍 → AI 对比批改 → Band 7 目标样例</div>
 
   <div class="flowbar" id="flowbar"></div>
 
@@ -126,7 +120,7 @@
 
   <div class="export-card" style="margin-top:26px">
     <b>批改从 AI 来，页面自动接收</b><br>
-    每题做完两遍，点题内「🤖 交 AI 批改本题」，回对话说「<b>批</b>」，批改几秒后自动落回本题下方，永久保存。信箱服务由系统常驻托管；万一离线，题内会出现红色恢复指引和重试按钮。
+    第一遍写完点「交 AI 批改第一遍」，回对话说「<b>批</b>」，批改自动落回本题下方；看着批改练第二遍，再交一次拿两遍对比批改。永久保存；信箱服务由系统常驻托管，万一离线，题内会出现红色恢复指引和重试按钮。
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -134,27 +128,6 @@
 <script>
 /* ===== 题库数据（来自课程 course-20260822-d54mga · Lesson 1，范文以题库 PDF 为底）===== */
 const QUESTIONS = __QUESTIONS_JSON__;
-
-/* ===== 自评清单（基于你的写作批改记录迁移：冠词、人称漂移、中式直译是高频复发）===== */
-const CHECKS = [
-  ["内容结构", [
-    "第一句直接回答问题，没有绕",
-    "给了 1 个理由或例子（2–4 句，不贪多）"
-  ]],
-  ["语法自查", [
-    "问过去的题，动词全部过去式了吗",
-    "冠词过一遍 a / an / the（高频复发）",
-    "人称一致：I / my / you 不中途漂移（高频复发）"
-  ]],
-  ["词汇地道", [
-    "没有中式直译？拿不准就退朴素说法",
-    "用上了题卡里至少 1 个亮点表达"
-  ]],
-  ["口语感", [
-    "开头有缓冲词（Well / Actually / Honestly）",
-    "读一遍，拗口的句子改短"
-  ]]
-];
 
 /* ===== 状态 ===== */
 /* ===== 本讲配置（生成时替换：见 SKILL.md）===== */
@@ -172,22 +145,23 @@ function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
     if (s && s.q && s.q.length === QUESTIONS.length) {
-      // 旧版页面存的条目可能缺字段（如老存档没有 checks）：长度守卫只看题数，
-      // 缺字段的题一渲染就抛错，表现为翻页按钮点了没反应——逐题补齐再放行，老答案原样保留
+      // 旧版页面存的条目可能缺字段：长度守卫只看题数，缺字段的题一渲染就抛错，
+      // 表现为翻页按钮点了没反应——逐题补齐再放行，老答案原样保留。
+      // gen-6 迁移：旧 pending/feedback 只可能在第二遍提交后产生 → 映射到 pending2/fb2
       s.cur = Math.min(Math.max(s.cur | 0, 0), QUESTIONS.length - 1);
       s.q = s.q.map(e => ({
         first: e.first || "", firstDone: !!e.firstDone,
         second: e.second || "", secondDone: !!e.secondDone,
-        checks: e.checks && typeof e.checks === "object" ? e.checks : {},
-        pending: !!e.pending,
-        feedback: typeof e.feedback === "string" ? e.feedback : ""
+        pending1: !!e.pending1, fb1: typeof e.fb1 === "string" ? e.fb1 : "",
+        pending2: e.pending2 !== undefined ? !!e.pending2 : !!e.pending,
+        fb2: e.fb2 !== undefined ? (typeof e.fb2 === "string" ? e.fb2 : "") : (typeof e.feedback === "string" ? e.feedback : "")
       }));
       return s;
     }
   } catch (e) {}
   return {
     cur: 0,
-    q: QUESTIONS.map(() => ({ first: "", firstDone: false, second: "", secondDone: false, checks: {} }))
+    q: QUESTIONS.map(() => ({ first: "", firstDone: false, second: "", secondDone: false, pending1: false, fb1: "", pending2: false, fb2: "" }))
   };
 }
 function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
@@ -436,12 +410,6 @@ function render() {
   ).join("") + '<span class="flowmeta">已完成 ' + state.q.filter(x => x.secondDone).length + " / " + QUESTIONS.length + " 题</span>";
 
   const i = state.cur, d = state.q[i], Q = QUESTIONS[i];
-  const checksHtml = CHECKS.map(([g, items]) =>
-    '<h5>' + g.toUpperCase() + " · " + g + '</h5>' + items.map((c, ci) => {
-      const id = "ck-" + i + "-" + g + "-" + ci;
-      return '<label><input type="checkbox" id="' + id + '"' + (d.checks[id] ? " checked" : "") + ' onchange="ck(this)"><span>' + c + "</span></label>";
-    }).join("")
-  ).join("");
 
   let html = '<div class="card reveal" key="' + i + '">';
   html += '<span class="qtag">' + PART_LABEL + ' · 第 ' + (i + 1) + " / " + QUESTIONS.length + ' 题</span>';
@@ -451,20 +419,35 @@ function render() {
   /* 第一遍 */
   html += '<div class="step-label"><span class="n">1</span>第一遍作答（开口说或打字，' + ANSWER_SCOPE + '）</div>';
   html += '<textarea id="first-' + i + '" placeholder="点下方「说第一遍」开口说（自动转文字），或直接打字…" oninput="onType(' + i + ',\'first\',this.value)">' + esc(d.first) + "</textarea>";
-  html += '<div class="tbar"><button class="mic-btn" data-q="' + i + '" data-f="first" data-label="🎤 说第一遍（自动转文字）" onclick="toggleDict(' + i + ',\'first\')">🎤 说第一遍（自动转文字）</button><span class="wc" id="wc-' + i + '"></span><button class="primary" onclick="submitFirst(' + i + ')">写完了，去自评</button></div>';
+  html += '<div class="tbar"><button class="mic-btn" data-q="' + i + '" data-f="first" data-label="🎤 说第一遍（自动转文字）" onclick="toggleDict(' + i + ',\'first\')">🎤 说第一遍（自动转文字）</button><span class="wc" id="wc-' + i + '"></span><button class="primary" onclick="submitFirst(' + i + ')">第一遍写完了，交 AI 批改</button></div>';
 
   if (d.firstDone) {
-    /* 自评 + 折叠的参考样例兜底 */
-    html += '<div class="step-label"><span class="n">2</span>自评：对照清单检查第一遍（针对你的批改在本题完成后向 AI 获取）</div>';
-    html += '<div class="checks reveal" style="margin-top:4px">' + checksHtml + "</div>";
+    /* 第一遍批改（AI 反馈落点，先于第二遍——按批改练第二遍） */
+    html += '<div class="step-label"><span class="n">2</span>第一遍 AI 批改（回对话说「批」，批改自动落在这里）</div>';
+    html += '<div class="fb-zone reveal"><b>第一遍批改</b>';
+    if (mbOnline) {
+      html += d.pending1
+        ? '<div class="note" style="margin-top:8px;color:#b45309">⏳ 第一遍已提交，等 AI 批改中——回对话里说「批」，批改会自动出现在这里并解锁第二遍</div>'
+        : '<div class="tts"><button class="primary" onclick="submitRound(' + i + ',1)">🤖 交 AI 批改第一遍</button></div><div class="note">首次提交或改过答案后重交；点击后回对话说「批」，几秒后批改自动落在下方</div>';
+    } else {
+      html += '<div class="note" style="margin-top:8px;color:#b3261e">⚠ 信箱服务离线，批改直连暂不可用。恢复：回 AI 对话说「起信箱」，或终端运行 python3 "Desktop/English Learning/speaking/mailbox.py"（服务通常由系统常驻托管，很少离线）</div><div class="tts"><button onclick="retryMb()">重试连接</button></div>';
+    }
+    if (d.fb1) html += '<div id="fb1-' + i + '">' + fbHtml(d.fb1) + "</div>";
+    html += "</div>";
+
+    /* 折叠的参考样例兜底 */
     html += '<details class="sample reveal" style="margin-top:12px"><summary>没思路 / 想对照？展开题库参考样例（写第二遍前尽量少看）</summary><div id="tx-' + i + '" style="margin-top:10px">' + esc(Q.sample) + '</div><div class="note">合格线样例；更高分的表达见完成后的 Band 7 目标样例</div><div class="tts"><button onclick="speakById(' + i + ',0.95)">▶ 常速朗读</button><button onclick="speakById(' + i + ',0.72)">🐢 慢速跟读</button><button onclick="stopSpeak()">■ 停止</button></div></details>';
 
-    /* 第二遍 */
-    html += '<div class="step-label"><span class="n">3</span>第二遍作答（对照范文和自评结果修改）</div>';
-    html += '<textarea id="second-' + i + '" placeholder="点下方「说第二遍」开口说（自动转文字），或直接打字…" oninput="onType(' + i + ',\'second\',this.value)">' + esc(d.second) + "</textarea>";
-    html += '<div class="tbar"><button class="mic-btn" data-q="' + i + '" data-f="second" data-label="🎤 说第二遍（自动转文字）" onclick="toggleDict(' + i + ',\'second\')">🎤 说第二遍（自动转文字）</button><span class="wc" id="wc2-' + i + '"></span><button class="primary" onclick="submitSecond(' + i + ')">写完了，去拿批改</button></div>';
+    /* 第二遍：第一遍批改到达后解锁 */
+    if (d.fb1 || d.secondDone) {
+      html += '<div class="step-label"><span class="n">3</span>第二遍作答（根据第一遍批改修改）</div>';
+      html += '<textarea id="second-' + i + '" placeholder="点下方「说第二遍」开口说（自动转文字），或直接打字…" oninput="onType(' + i + ',\'second\',this.value)">' + esc(d.second) + "</textarea>";
+      html += '<div class="tbar"><button class="mic-btn" data-q="' + i + '" data-f="second" data-label="🎤 说第二遍（自动转文字）" onclick="toggleDict(' + i + ',\'second\')">🎤 说第二遍（自动转文字）</button><span class="wc" id="wc2-' + i + '"></span><button class="primary" onclick="submitSecond(' + i + ')">第二遍写完了，交 AI 批改</button></div>';
+    } else {
+      html += '<div class="locked">第二遍在第一遍批改到达后解锁——回对话说「批」，批改几秒后自动出现</div>';
+    }
   } else {
-    html += '<div class="locked">写完第一遍后解锁：自评清单 · 第二遍作答</div>';
+    html += '<div class="locked">写完第一遍后解锁：第一遍 AI 批改 · 第二遍作答</div>';
   }
 
   if (d.secondDone) {
@@ -472,16 +455,16 @@ function render() {
     html += '<div class="sample b7 reveal"><h4>Band 7 目标样例</h4><div id="b7-' + i + '">' + withHighlights(Q.band7, Q.highlights) + '</div><div class="note">目标长这样；基于「你自己答案」的个性化润色从下面的批改闭环拿</div><div class="tts"><button onclick="speakB7(' + i + ',0.95)">▶ 常速朗读</button><button onclick="speakB7(' + i + ',0.72)">🐢 慢速跟读</button><button onclick="toggleRec(' + i + ')">● 录跟读</button><button onclick="stopSpeak()">■ 停止</button></div>';
     html += '<ul class="hl-notes">' + Q.highlights.map(([sub, note]) => "<li><b>" + esc(sub) + "</b> — " + esc(note) + "</li>").join("") + "</ul></div>";
 
-    /* 批改闭环 */
-    html += '<div class="fb-zone reveal"><b>最后一步：拿针对你的批改</b>';
+    /* 第二遍批改（含两遍对比） */
+    html += '<div class="fb-zone reveal"><b>第二遍批改 · 含两遍对比</b>';
     if (mbOnline) {
-      html += d.pending
-        ? '<div class="note" style="margin-top:8px;color:#b45309">⏳ 已提交，等 AI 批改中——回对话里说「批」，批改会自动出现在这里</div>'
-        : '<div class="tts"><button class="primary" onclick="submitToAI(' + i + ')">🤖 交 AI 批改本题</button></div><div class="note">点击后回对话说「批」，几秒后批改自动落在本题下方，无需复制粘贴</div>';
+      html += d.pending2
+        ? '<div class="note" style="margin-top:8px;color:#b45309">⏳ 第二遍已提交，等 AI 批改中——回对话里说「批」，对比批改会自动出现在这里</div>'
+        : '<div class="tts"><button class="primary" onclick="submitRound(' + i + ',2)">🤖 交 AI 批改第二遍</button></div><div class="note">点击后回对话说「批」，几秒后批改自动落在本题下方，无需复制粘贴</div>';
     } else {
       html += '<div class="note" style="margin-top:8px;color:#b3261e">⚠ 信箱服务离线，批改直连暂不可用。恢复：回 AI 对话说「起信箱」，或终端运行 python3 "Desktop/English Learning/speaking/mailbox.py"（服务通常由系统常驻托管，很少离线）</div><div class="tts"><button onclick="retryMb()">重试连接</button></div>';
     }
-    if (d.feedback) html += '<div id="fb-' + i + '"><b style="font-size:12.5px;color:#2456d6">已保存的批改</b>' + fbHtml(d.feedback) + "</div>";
+    if (d.fb2) html += '<div id="fb-' + i + '">' + fbHtml(d.fb2) + "</div>";
     html += "</div>";
   }
 
@@ -510,17 +493,14 @@ function onType(i, field, val) {
 }
 function submitFirst(i) {
   if (wordcount(state.q[i].first).replace(/\D/g, "") < 5) { toast(PART_LABEL === "Part 1" ? "先写 2–4 句英文再提交（现在太短啦）" : "Part 2 独白要说满约 2 分钟（现在太短啦）"); return; }
-  state.q[i].firstDone = true; save(); render();
-  document.querySelector(".checks") && document.querySelector(".checks").scrollIntoView({ behavior: "smooth", block: "center" });
+  state.q[i].firstDone = true; save();
+  submitRound(i, 1);
 }
 function submitSecond(i) {
   if (wordcount(state.q[i].second).replace(/\D/g, "") < 5) { toast(PART_LABEL === "Part 1" ? "第二遍也要写完整哦（2–4 句）" : "第二遍也要说满约 2 分钟哦"); return; }
-  state.q[i].secondDone = true; save(); render();
+  state.q[i].secondDone = true; save();
+  submitRound(i, 2);
   toast("本题完成 ✓");
-}
-function ck(el) {
-  const id = el.id, qi = state.cur;
-  state.q[qi].checks[id] = el.checked; save();
 }
 function go(i) {
   state.cur = i; save(); render(); window.scrollTo({ top: 0, behavior: "smooth" });
@@ -535,22 +515,24 @@ document.getElementById("nextBtn").onclick = () => state.cur < QUESTIONS.length 
 const MB = (location.protocol === "http:" && location.hostname === "127.0.0.1") ? location.origin : "http://127.0.0.1:8765", LESSON = LESSON_ID;
 let mbOnline = false, mbTimer = null, mbWatermark = 0;
 
-function submitToAI(i) {
+function submitRound(i, round) {
   const d = state.q[i], Q = QUESTIONS[i];
+  const item = { qi: i, q: Q.q, first: d.first, round: round };
+  if (round === 2) item.second = d.second;
   fetch(MB + "/submit", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ lesson: LESSON, items: [{ qi: i, q: Q.q, first: d.first, second: d.second }] })
+    body: JSON.stringify({ lesson: LESSON, items: [item] })
   }).then(r => r.json()).then(() => {
-    state.q[i].pending = true; save(); render();
-    toast("已提交 ✓ 回对话里说「批」，批改稍后自动出现");
+    state.q[i]["pending" + round] = true; save(); render();
+    toast(round === 1 ? "第一遍已提交 ✓ 回对话里说「批」，批改到了会自动解锁第二遍" : "已提交 ✓ 回对话里说「批」，两遍对比批改稍后自动出现");
     pollFb();
-  }).catch(() => toast("提交失败——信箱离线，恢复方法见题内红色提示"));
+  }).catch(() => { save(); render(); toast("提交失败——信箱离线，恢复方法见题内红色提示"); });
 }
 function retryMb() {
   fetch(MB + "/ping").then(r => r.json()).then(() => {
     mbOnline = true; render();
     toast("信箱已连接 ✓");
-    if (state.q.some(x => x.pending)) pollFb();
+    if (state.q.some(x => x.pending1 || x.pending2)) pollFb();
   }).catch(() => toast("还是连不上——回对话说「起信箱」，或看题内指引"));
 }
 function pollFb() {
@@ -566,13 +548,14 @@ async function fetchFb(loud) {
     for (const fb of list) {
       if (fb.lesson !== LESSON || fb.qi < 0 || fb.qi >= QUESTIONS.length) continue;
       if (fb.ts <= mbWatermark) continue;
-      state.q[fb.qi].feedback = fb.text;
-      state.q[fb.qi].pending = false;
+      const r = fb.round === 1 ? 1 : 2;   // 旧版无 round 字段的历史批改按第二遍处理
+      state.q[fb.qi]["fb" + r] = fb.text;
+      state.q[fb.qi]["pending" + r] = false;
       mbWatermark = Math.max(mbWatermark, fb.ts); got++;
     }
     if (got) {
       save(); render();
-      if (loud) { toast("收到 AI 批改 ✓"); if (mbTimer) { clearInterval(mbTimer); mbTimer = null; } }
+      if (loud) { toast("收到 AI 批改 ✓"); if (mbTimer && !state.q.some(x => x.pending1 || x.pending2)) { clearInterval(mbTimer); mbTimer = null; } }
     }
   } catch (e) {}
 }
@@ -596,13 +579,13 @@ function toast(msg) {
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2200);
 }
 
-document.getElementById("submeta").textContent = COURSE_LINE + " · 第 " + LESSON_NO + "/" + TOTAL_LESSONS + " 讲 · " + QUESTIONS.length + " 题 · 两轮打磨：第一遍自答 → 对照样例自评 → 第二遍修改 → Band 7 目标样例";
+document.getElementById("submeta").textContent = COURSE_LINE + " · 第 " + LESSON_NO + "/" + TOTAL_LESSONS + " 讲 · " + QUESTIONS.length + " 题 · 两轮打磨：第一遍作答 → AI 批改 → 按批改练第二遍 → AI 对比批改 → Band 7 目标样例";
 render();
 /* 信箱探测：在线则切换 AI 直连模式，并补收错过的批改 */
 fetch(MB + "/ping").then(r => r.json()).then(() => {
   mbOnline = true; render();
   fetchFb(true);
-  if (state.q.some(x => x.pending)) pollFb();
+  if (state.q.some(x => x.pending1 || x.pending2)) pollFb();
 }).catch(() => {});
 /* 回到页面/窗口聚焦时补拉一次批改：轮询 10 分钟窗口过后写的批改也能自动出现，无需手动刷新 */
 document.addEventListener("visibilitychange", () => { if (!document.hidden && mbOnline) fetchFb(true); });

@@ -1,6 +1,6 @@
 ---
 name: english-speaking
-description: 雅思口语题库练习页生成 + 本地信箱批改闭环。当用户说「生成口语练习页/口语网页版/口语第 N 讲网页」「铺下一讲口语」「把口语题库做成网页」「把 PDF/Word 题库做成口语练习页」「用这个文档出口语题」，或单字「批」要求批改信箱里的口语作答，或说「起信箱/信箱掉了/信箱离线」要求恢复本地批改服务，或问到口语练习页/信箱服务怎么用时触发。产出单文件 HTML（语音转文字作答、TTS 朗读、两轮打磨、自评清单、Band 7 目标样例、AI 批改直连），信箱服务由 launchd 常驻托管（127.0.0.1:8765）实现网页提交→AI 批改→自动回填，无手动模式。用户给 pdf/docx/doc/rtf/html/txt/md 文档路径时走 assets/ingest.py 抽取 + references/ingest.md 流程出题（自包含，不依赖课程系统）。与 english-writing（写作）同家族，本 skill 只管口语。
+description: 雅思口语题库练习页生成 + 本地信箱批改闭环。当用户说「生成口语练习页/口语网页版/口语第 N 讲网页」「铺下一讲口语」「把口语题库做成网页」「把 PDF/Word 题库做成口语练习页」「用这个文档出口语题」，或单字「批」要求批改信箱里的口语作答，或说「起信箱/信箱掉了/信箱离线」要求恢复本地批改服务，或问到口语练习页/信箱服务怎么用时触发。产出单文件 HTML（语音转文字作答、TTS 朗读、两轮打磨——第一遍作答即交 AI 批改、按批改练第二遍再交一次拿两遍对比、Band 7 目标样例），信箱服务由 launchd 常驻托管（127.0.0.1:8765）实现网页提交→AI 批改→自动回填，无手动模式。用户给 pdf/docx/doc/rtf/html/txt/md 文档路径时走 assets/ingest.py 抽取 + references/ingest.md 流程出题（自包含，不依赖课程系统）。与 english-writing（写作）同家族，本 skill 只管口语。
 ---
 
 # 雅思口语 · 网页练习页生成与批改闭环
@@ -11,7 +11,7 @@ description: 雅思口语题库练习页生成 + 本地信箱批改闭环。当�
 
 1. 不接外部 LLM API——要 key、非离线，批改质量不如直接回对话
 2. 页内只放「题库样例」和「Band 7 目标样例」，**针对学生的批改只从信箱来**——页内任何内容都不许冒充批改结果
-3. 批改**以第二遍为准**（第一遍→第二遍之间只有自评清单，没有 AI 参与，对第一遍的详细反馈是马后炮）；第一遍数据仍收集，用于内部对比哪些错学生自己消灭了、哪些是顽固问题，在【点评】里带一句
+3. **两遍各自交 AI 批改**（gen-6 起的用户决定，取代旧的「以第二遍为准、两遍之间无 AI」）：第一遍写完页面即提交，学生拿着第一遍批改练第二遍（第二遍作答区在第一遍批改到达后解锁），第二遍再交、批改含两遍对比（内化 vs 顽固）。自评清单环节已删除
 
 ## 一、生成一讲练习页
 
@@ -77,7 +77,7 @@ highlights 由 AI 从 band7 里挑 2-4 个：优先固定搭配（如 `attention
 用户说「批」（或「批一下口语」）时：
 
 1. 读 `mailbox.json` 的 `submissions`；空则告诉用户信箱无待批（可能网页没提交或服务没跑）
-2. 逐题批改，格式见 `references/grading.md`（**必须先读它**）——三段式【点评】【你的润色版】【亮点】，语音识别同音误差先还原
+2. 逐条批改，格式见 `references/grading.md`（**必须先读它**）——按 submission 的 `round` 分流：`round:1` 批第一遍（无对比段，建议要能立刻用于第二遍修改），`round:2` 批第二遍（【点评】含两遍对比：内化 vs 顽固，润色版以 second 为底）；语音识别同音误差先还原；同题同轮重复提交取 ts 最新一条
 3. 批改写回：**必须走 `POST /grade`**（读 mailbox.json 只读无害，写回绝不直接改文件）。`/grade` 在服务器进程内一次完成「追加 feedbacks（服务器自动盖当前时间戳，天然大于网页水位）+ 按 `ts` 删掉本次已处理的 submissions」，不存在并发覆盖窗口
 4. 回复用户「好了，网页上看」，并点出 1-2 个最值得注意的修正
 
@@ -85,13 +85,15 @@ highlights 由 AI 从 band7 里挑 2-4 个：优先固定搭配（如 `attention
 
 ```python
 import json, urllib.request
-payload = {"ts_done": [<本次已批 submissions 的 ts 原值列表>],
-           "feedbacks": [{"lesson": "L02-tidiness", "qi": 0, "text": "【点评】…"}]}
+payload = {"ts_done": [<本次已批 submissions 的 ts 原值列表，含同题同轮被取代的旧提交>],
+           "feedbacks": [{"lesson": "L02-tidiness", "qi": 0, "round": 1, "text": "【点评】…"}]}
 req = urllib.request.Request("http://127.0.0.1:8765/grade",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={"Content-Type": "application/json"})
 print(urllib.request.urlopen(req, timeout=5).read().decode())  # {"ok": true, "feedbacks": N, "submissions": M}
 ```
+
+`round` 必须与所批 submission 一致——页面靠它把批改渲染到第一遍区（解锁第二遍）还是第二遍区；漏写会被当第二轮。
 
 ## 四、已知边界（用户问起时答）
 
@@ -99,4 +101,3 @@ print(urllib.request.urlopen(req, timeout=5).read().decode())  # {"ok": true, "f
 - 录音仅会话内存，刷新丢失（答案文本和批改持久化在 localStorage）
 - 练习页日常走 `http://127.0.0.1:8765/` 同源打开（麦克风授权 Chrome 只记这一次）。file:// 双击仍可用——页面 head 的升级脚本会在信箱在线时自动跳到 http，跳转把 file:// 侧 localStorage 的作答进度经 `#migrate=` 带过去、仅补缺不覆盖；信箱离线时留在 file:// 原样可练，只是 Chrome 对 file:// 每次录音都重新弹授权窗（Chrome 的既定行为，无解，别再找设置项）。信箱跨域由 CORS `*` 处理，并带 Origin 校验：curl（无 Origin）、file:// 页面（`Origin: null`）与同源 http 页面放行，浏览器里其他网页一律 403——仅监听回环挡不住它们
 - 批改只有一种获取方式：信箱直连。页面离线 = 异常状态（红色指引 + 重试按钮），不要建议手动复制粘贴——用户已明确否决手动模式
-- 自评清单里的「高频复发」项源自该生写作批改记录（冠词、人称漂移、中式直译），口语批改中发现新顽固错误时应建议更新清单

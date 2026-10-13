@@ -186,9 +186,10 @@ class Handler(BaseHTTPRequestHandler):
                 done = set(data.get("ts_done") or [])
                 box["submissions"] = [s for s in box.get("submissions", []) if s.get("ts") not in done]
                 for fb in data.get("feedbacks") or []:
-                    box.setdefault("feedbacks", []).append(
-                        {"ts": time.time(), "lesson": fb.get("lesson"), "qi": fb.get("qi"), "text": fb.get("text")}
-                    )
+                    rec = {"ts": time.time(), "lesson": fb.get("lesson"), "qi": fb.get("qi"), "text": fb.get("text")}
+                    if fb.get("round") in (1, 2):   # gen-6：两遍各自批改，页面按 round 路由 fb1/fb2；旧批改无此字段
+                        rec["round"] = fb["round"]
+                    box.setdefault("feedbacks", []).append(rec)
                 write_box(box)
                 self._send({"ok": True, "feedbacks": len(box["feedbacks"]), "submissions": len(box["submissions"])})
             elif self.path.startswith("/submit"):
