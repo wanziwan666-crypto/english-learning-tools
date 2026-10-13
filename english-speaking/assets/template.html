@@ -171,7 +171,19 @@ let state = load();
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
-    if (s && s.q && s.q.length === QUESTIONS.length) return s;
+    if (s && s.q && s.q.length === QUESTIONS.length) {
+      // 旧版页面存的条目可能缺字段（如老存档没有 checks）：长度守卫只看题数，
+      // 缺字段的题一渲染就抛错，表现为翻页按钮点了没反应——逐题补齐再放行，老答案原样保留
+      s.cur = Math.min(Math.max(s.cur | 0, 0), QUESTIONS.length - 1);
+      s.q = s.q.map(e => ({
+        first: e.first || "", firstDone: !!e.firstDone,
+        second: e.second || "", secondDone: !!e.secondDone,
+        checks: e.checks && typeof e.checks === "object" ? e.checks : {},
+        pending: !!e.pending,
+        feedback: typeof e.feedback === "string" ? e.feedback : ""
+      }));
+      return s;
+    }
   } catch (e) {}
   return {
     cur: 0,
