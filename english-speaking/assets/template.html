@@ -62,6 +62,7 @@
   .rec-list { margin-top: 10px; }
   .rec-item { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 13px; }
   .rec-item audio { height: 32px; flex: 1; }
+  .rec-item .rdur { color: #8a94a3; font-variant-numeric: tabular-nums; }
   .rec-item .del { color: #b3261e; font-size: 12px; padding: 3px 8px; }
   .rec-tip { font-size: 12px; color: #8a94a3; margin-top: 6px; }
   .navbtns { display: flex; justify-content: space-between; margin-top: 22px; }
@@ -181,7 +182,7 @@ function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
 
 /* ===== 录音 + 语音识别（录音仅会话内存；识别用浏览器原生 STT，Chrome/Safari 支持）===== */
 const recs = QUESTIONS.map(() => []);
-let recorder = null, recChunks = [], recQ = -1, recLabel = "录音";
+let recorder = null, recChunks = [], recQ = -1, recLabel = "录音", recT0 = 0;
 
 async function startRec(qi, label, sess) {
   if (recorder) return;
@@ -189,12 +190,12 @@ async function startRec(qi, label, sess) {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const mime = ["audio/webm", "audio/mp4"].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
     recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-    recChunks = []; recQ = qi; recLabel = label;
+    recChunks = []; recQ = qi; recLabel = label; recT0 = Date.now();
     recorder.ondataavailable = e => { recChunks.push(e.data); if (sess && sess.sttDead) liveWindow(sess); };
     recorder.onstop = () => {
       stream.getTracks().forEach(t => t.stop());
       const blob = new Blob(recChunks, { type: recorder.mimeType || "audio/webm" });
-      recs[qi].push({ label: recLabel + " " + (recs[qi].length + 1), url: URL.createObjectURL(blob), at: new Date(), blob: blob, field: sess ? sess.field : null });
+      recs[qi].push({ label: recLabel + " " + (recs[qi].length + 1), url: URL.createObjectURL(blob), at: new Date(), dur: Math.max(1, Math.round((Date.now() - recT0) / 1000)), blob: blob, field: sess ? sess.field : null });
       recorder = null;
       refreshRecs(qi);
       // 浏览器识别整段没出过一个字（服务连不上等）：录音落地即自动本地转写兜底
@@ -365,8 +366,16 @@ function recsHtml(qi) {
   if (!recs[qi].length) return "";
   return '<div class="rec-sec reveal" style="margin-top:14px"><b style="font-size:13px">本题录音（回放自查，刷新丢失）</b><div class="rec-list">' +
     recs[qi].map((r, i) =>
-      '<div class="rec-item"><b>' + esc(r.label) + '</b><audio controls src="' + r.url + '"></audio>' + (r.field && !r.sttDone ? '<button onclick="recStt(' + qi + ',' + i + ')">🔍 本地转文字</button>' : (r.sttDone ? '<span class="wc">✓ 已转文字</span>' : '')) + '<button class="del" onclick="delRec(' + qi + ',' + i + ')">删除</button></div>'
+      '<div class="rec-item"><b>' + esc(r.label) + '</b>' + (r.dur ? '<span class="rdur">' + mmss(r.dur) + '</span>' : '') + '<audio controls src="' + r.url + '" onloadedmetadata="fixRecDur(this)"></audio>' + (r.field && !r.sttDone ? '<button onclick="recStt(' + qi + ',' + i + ')">🔍 本地转文字</button>' : (r.sttDone ? '<span class="wc">✓ 已转文字</span>' : '')) + '<button class="del" onclick="delRec(' + qi + ',' + i + ')">删除</button></div>'
     ).join("") + "</div></div>";
+}
+function mmss(s) { return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+function fixRecDur(el) {
+  // 切片录音拼出的 webm 头里没有 Duration 元素，浏览器报 Infinity、播放器恒显 0:00：
+  // seek 到极大值逼它把真实时长算出来，拿到后归零（Chrome 对 blob 音频的已知手法）
+  if (isFinite(el.duration)) return;
+  el.currentTime = 1e101;
+  el.ontimeupdate = () => { el.ontimeupdate = null; el.currentTime = 0; };
 }
 function refreshRecs(qi) {
   const box = document.getElementById("recbox-" + qi);
