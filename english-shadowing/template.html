@@ -585,10 +585,17 @@ $('btn-replay').onclick = ()=>{
   if (!lastNavManual && i > 0 && media.currentTime - cur.start < 0.8) i = i - 1;
   jumpTo(i);
 };
-$('btn-loop').onclick = function(){ loopOne=!loopOne; this.classList.toggle('on',loopOne);
-  toast(loopOne?'循环本句：开':'循环本句：关'); };
-$('btn-smode').onclick = function(){ sentenceMode=!sentenceMode; this.classList.toggle('on',sentenceMode);
-  toast(sentenceMode?'逐句模式：播完自动停':'逐句模式：关'); };
+// 两模式互斥：句尾动作只有一个（循环回跳或暂停停住），同时亮着是骗人的状态
+function setLoop(on){ loopOne=on; if(on) sentenceMode=false;
+  $('btn-loop').classList.toggle('on',loopOne);
+  $('btn-smode').classList.toggle('on',sentenceMode);
+  toast(on?'循环本句：开':'循环本句：关'); }
+function setSmode(on){ sentenceMode=on; if(on) loopOne=false;
+  $('btn-smode').classList.toggle('on',sentenceMode);
+  $('btn-loop').classList.toggle('on',loopOne);
+  toast(on?'逐句模式：播完自动停':'逐句模式：关'); }
+$('btn-loop').onclick = ()=>setLoop(!loopOne);
+$('btn-smode').onclick = ()=>setSmode(!sentenceMode);
 $('speed').onchange = function(){ media.playbackRate = +this.value; };
 $('sub-mode').onchange = function(){ blindPeek=false; renderCurrentSub(); renderList(); };
 $('reset-btn').onclick = ()=>{
