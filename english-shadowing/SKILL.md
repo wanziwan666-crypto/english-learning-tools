@@ -113,14 +113,20 @@ ffprobe -v error -show_entries format=duration -of csv=p=0 <file>
 ```bash
 python3 <本 skill 目录>/build_shadowing.py --url "<视频链接>" [--cn] \
   [--start 1:30 --stop 3:00] [--max-height 720] [--dict /tmp/dict.json] \
+  [--cookies chrome] [--dedupe-roll] \
   --title "课名" --slug lesson-id
 ```
 
 自动：yt-dlp 下载视频 + 拉字幕（人工字幕优先、缺失退自动字幕，转 SRT）→
 `--start/--stop` 用 ffmpeg 裁切并自动平移字幕时间轴（长视频拆期练）→ 构建。
 
-**本机网络现实（2026-09 实测，重要）**：
-- YouTube / Vimeo 直连不通，无本地代理——用户挂上代理后设 `HTTPS_PROXY` 环境变量即可用同命令拉 YouTube（字幕质量最好）。
+**本机网络现实（2026-10 实测，重要）**：
+- YouTube / Vimeo 直连不通（yt-dlp 请求 API 会挂死，杀进程换代理，别等）；挂代理（127.0.0.1:7890）
+  设 `HTTPS_PROXY` 后**还需 `--cookies chrome`**——2026-10 起代理出口 IP 被 YouTube 风控
+  （429 + "Sign in to confirm you're not a bot"，换 ios/tv/android_vr 等客户端参数也没用）。
+  首次读 Chrome cookies 会弹 macOS 钥匙串授权框，让用户点「**始终允许**」（点一次永久生效，
+  只点「允许」下次还弹）；之后偶报 "The page needs to be reloaded"，重试一两次即过。
+- yt-dlp 的 TED.com 提取器已坏（官网改版，playerData 字段没了）——TED 素材走 YouTube 源。
 - **B 站可达但英语内容基本是烧录硬字幕**（CC 列表只有弹幕，CGTN/BBC搬运/教学号均实测无英文 CC），
   `--url` 对 B 站大概率因「没拉到英文字幕」退出。B 站素材的正确姿势：下载视频后走 **Whisper 转录**
   （faster-whisper + `HF_ENDPOINT=https://hf-mirror.com` 下模型）或让用户在字幕站下载 SRT 后走路径 A。
@@ -160,7 +166,10 @@ python3 <本 skill 目录>/build_shadowing.py --url "https://…/listening.mp3" 
 ### 字幕质量注意
 
 - SRT 碎片 cue（无标点的短行）会被自动合并成句：遇句末标点收口，否则最长 8 秒切一句。
-- YouTube 自动字幕（词级碎片）效果差，尽量用人工字幕；有 yt-dlp/whisper 后可扩展自动管线（当前机器未装）。
+- **YouTube 自动字幕是滚动式**（karaoke：相邻 cue 重复上一行、穿插 ~10ms 擦除 cue、句号常落在行中间），
+  通用解析会行间重复 + 断句切在词中间——加 `--dedupe-roll` 清洗：行去重 → 词级时间轴按词尾标点收句、
+  长句按逗号换气点软切。TED 演讲实测断句质量好（2026-10，87 句/10.5 分钟）。中文字幕同走清洗。
+  有人工字幕时仍然优先人工（不用此开关）。
 
 ## 页面功能（template.html 内置）
 

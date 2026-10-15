@@ -8,7 +8,8 @@ build_shadowing.py — 把 媒体文件+字幕 或 视频链接 变成影子跟�
 
 用法 B（视频直链，YouTube/B站等 yt-dlp 支持的站点）：
   python3 build_shadowing.py --url "https://www.youtube.com/watch?v=xxx" \
-      [--cn] [--start 1:30 --stop 3:00] [--max-height 720]
+      [--cn] [--start 1:30 --stop 3:00] [--max-height 720] \
+      [--cookies chrome] [--dedupe-roll]
 
 用法 C（无字幕素材：本地 Whisper 转录，解锁 B 站硬字幕视频）：
   python3 build_shadowing.py --url "https://www.bilibili.com/video/BVxxx" --transcribe \
@@ -17,7 +18,8 @@ build_shadowing.py — 把 媒体文件+字幕 或 视频链接 变成影子跟�
 
 行为：
   1. URL 模式：yt-dlp 下载视频（≤max-height）+ 字幕（人工字幕优先，缺失时退自动字幕），ffmpeg 裁切
-  2. 解析 SRT/VTT（或 Whisper 转录产出），碎片 cue 按句末标点或最长 8s 合并成句；中文字幕按时间重叠贴进句子
+  2. 解析 SRT/VTT（或 Whisper 转录产出），碎片 cue 按句末标点或最长 8s 合并成句；中文字幕按时间重叠贴进句子；
+     --dedupe-roll 时先做 YouTube 滚动字幕清洗（行去重→词级时间轴断句，标点在行中也能按句收口）
   3. 媒体复制到输出 HTML 同目录（slug 前缀防撞名）；词典嵌入供离线划词
   4. 注入 template.html 生成最终页面
 """
@@ -39,6 +41,9 @@ SENT_END = tuple(".?!…")
 MAX_SENT_DUR = 8.0
 VIDEO_EXT = {".mp4", ".webm", ".mov", ".m4v", ".mkv"}
 AUDIO_EXT = {".mp3", ".m4a", ".wav", ".aac", ".ogg", ".opus", ".flac"}
+# 子进程（yt-dlp/ffmpeg）的 PATH 兜底带上 brew 目录：yt-dlp 解 n-challenge 要能找到 deno。
+# 注意这只影响子进程，不改变「用哪个 python3 跑本脚本」。
+SUB_ENV = dict(os.environ, PATH=":".join(BIN_DIRS) + ":" + os.environ.get("PATH", ""))
 
 
 def which_bin(name):
@@ -53,7 +58,7 @@ def which_bin(name):
 
 
 def sh(*cmd, **kw):
-    r = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    r = subprocess.run(cmd, capture_output=True, text=True, env=SUB_ENV, **kw)
     if r.returncode != 0:
         sys.exit(f"命令失败: {' '.join(cmd)}\n{r.stderr[-1500:]}")
     return r.stdout
@@ -133,6 +138,86 @@ def shift_cues(cues, offset):
     return out
 
 
+# ============================================================
+# YouTube 滚动式自动字幕（karaoke）清洗
+# ============================================================
+ROLL_TS_RE = re.compile(r"(\d[\d:.,]+)\s*-->\s*(\d[\d:.,]+)")
+ABBREV_END = ("Mr.", "Mrs.", "Ms.", "Dr.", "St.", "U.S.", "No.", "e.g.", "i.e.")
+
+
+def parse_srt_lines(path: Path):
+    """行感知解析：[(start, end, [行...])]。
+    滚动字幕正文里混着「单独空格行」，不能像 parse_srt 那样按空行分块（会被空格行切开）。"""
+    cues, cur = [], None
+    text = path.read_text("utf-8-sig", errors="replace")
+    for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        m = ROLL_TS_RE.match(line.strip())
+        if m:
+            if cur and cur[2]:
+                cues.append(cur)
+            cur = [ts2sec(m.group(1)), ts2sec(m.group(2)), []]
+        elif cur is not None:
+            s = line.strip()
+            if s and not s.isdigit():
+                cur[2].append(s)
+    if cur and cur[2]:
+        cues.append(cur)
+    return cues
+
+
+def dedupe_roll(path: Path):
+    """YouTube 滚动式自动字幕 → 干净的行级 cue。
+    滚动格式：相邻 cue 重复上一行（新行总在 cue 最后一行）、穿插 ~10ms 擦除 cue。
+    清洗 = 跳过擦除 cue + 只取每 cue 最后一行 + 滤掉 [掌声]/>> 类非语音行。"""
+    out = []
+    for start, end, body in parse_srt_lines(path):
+        if end - start < 0.05:  # 擦除 cue
+            continue
+        txt = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", body[-1])).strip()
+        if not txt or txt.startswith(">>") or re.match(r"^\[[^\]]+\]$", txt):
+            continue
+        if out and out[-1][2] == txt:
+            out[-1] = (out[-1][0], end, txt)
+        else:
+            out.append((start, end, txt))
+    return out
+
+
+def split_word_sentences(cues, cap=20.0, comma_after=11.0, min_words=3):
+    """行级 cue → 完整句 cue：词均摊到时间轴，按词尾标点收句。
+    滚动字幕的行断与句断不对齐（句号常在行中间），通用 merge_to_sentences 靠「行尾标点」
+    判句几乎不触发、退化成 8s 硬切（会切在词中间）；这里按词流收句。
+    口语长句（逗号连接的流水句）在 comma_after 秒后遇逗号软切（换气单元）。"""
+    words = []
+    for s, e, txt in cues:
+        ws = txt.split()
+        if not ws:
+            continue
+        dur = (e - s) / len(ws) if e > s else 0.4
+        for i, w in enumerate(ws):
+            words.append((w, s + dur * i, s + dur * (i + 1)))
+    out, buf = [], []
+    for w, ts, te in words:
+        buf.append((w, ts, te))
+        clean = w.rstrip("\"'”’")
+        dur = te - buf[0][1]
+        ends = clean.endswith(SENT_END) and not clean.endswith(ABBREV_END)
+        ok_len = len(buf) >= min_words or dur >= 2.0
+        comma_soft = clean.endswith(",") and dur >= comma_after
+        if (ends and ok_len) or comma_soft or dur >= cap:
+            out.append([buf[0][1], buf[-1][2] + 0.15, " ".join(x[0] for x in buf)])
+            buf = []
+    if buf:
+        if out and len(buf) < min_words:  # 尾巴太短并给上句
+            out[-1][1] = buf[-1][2] + 0.15
+            out[-1][2] += " " + " ".join(x[0] for x in buf)
+        else:
+            out.append([buf[0][1], buf[-1][2] + 0.15, " ".join(x[0] for x in buf)])
+    for i in range(len(out) - 1):  # 句尾不越过下句起点
+        out[i][1] = min(out[i][1], out[i + 1][0])
+    return [tuple(c) for c in out]
+
+
 def merge_to_sentences(cues):
     sents, buf = [], []
     for start, end, txt in cues:
@@ -154,6 +239,11 @@ def merge_to_sentences(cues):
             merged[-1] = (p[0], s[1], p[2] + " " + s[2])
         else:
             merged.append(list(s))
+    # 句间保底 0.4s 空隙：页面 timeupdate 在 [本句end-0.06, 下句start-0.05) 窗口内触发
+    # 「循环本句/逐句暂停」；句尾贴着下句起点（词级时间轴估算/whisper 连续语音常见）会把
+    # 窗口压到 ~10ms，timeupdate ~250ms 一跳几乎必错过——按钮开了却永远不触发。
+    for i in range(len(merged) - 1):
+        merged[i][1] = min(merged[i][1], merged[i + 1][0] - 0.4)
     return [tuple(s) for s in merged]
 
 
@@ -183,13 +273,14 @@ def merge_cn(sents, cn_cues):
 SUB_LANGS = "en,en-US,en-GB,en-orig,zh,zh-Hans,zh-CN,zh-TW"
 
 
-def download_from_url(url, workdir, max_height, want_cn):
+def download_from_url(url, workdir, max_height, want_cn, ytdlp_extra=()):
     ytdlp = which_bin("yt-dlp")
     sublangs = SUB_LANGS if want_cn else "en,en-US,en-GB,en-orig"
     out_tmpl = str(workdir / "media.%(ext)s")
     cmd = [
         ytdlp,
         "--ffmpeg-location", which_bin("ffmpeg"),
+        *ytdlp_extra,
         "-f", f"bv*[height<={max_height}]+ba/b[height<={max_height}]/b",
         "--merge-output-format", "mp4",
         "--write-subs", "--write-auto-subs",
@@ -201,7 +292,7 @@ def download_from_url(url, workdir, max_height, want_cn):
         "-o", out_tmpl,
         url,
     ]
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run(cmd, capture_output=True, text=True, env=SUB_ENV)
     if r.returncode != 0:
         sys.exit(f"yt-dlp 下载失败:\n{r.stderr[-1500:]}")
 
@@ -228,7 +319,8 @@ def download_from_url(url, workdir, max_height, want_cn):
 
     # 标题
     try:
-        info = json.loads(sh(ytdlp, "--skip-download", "--dump-json", "--no-playlist", url))
+        info = json.loads(sh(ytdlp, "--skip-download", "--dump-json", "--no-playlist",
+                             *ytdlp_extra, url))
         title = info.get("title") or ""
     except SystemExit:
         raise
@@ -342,6 +434,10 @@ def main():
     ap.add_argument("--dict", help="词典 JSON 文件 {word:释义}（可选）")
     ap.add_argument("--source", help="素材来源说明")
     ap.add_argument("--out", help="输出 HTML 路径")
+    ap.add_argument("--dedupe-roll", action="store_true",
+                    help="YouTube 滚动式自动字幕清洗：去重滚动行→词级时间轴断句（拉到自动字幕时的钥匙）")
+    ap.add_argument("--cookies", metavar="浏览器",
+                    help="yt-dlp 透传 --cookies-from-browser（如 chrome；YouTube 风控需要，首次弹钥匙串授权）")
     args = ap.parse_args()
 
     if not args.url and not (args.media and (args.srt or args.transcribe)):
@@ -354,7 +450,8 @@ def main():
     if args.url:
         tmpdir = Path(tempfile.mkdtemp(prefix="shadow-dl-"))
         media, en_srt, zh_srt, dl_title = download_from_url(
-            args.url, tmpdir, args.max_height, args.cn)
+            args.url, tmpdir, args.max_height, args.cn,
+            ytdlp_extra=(["--cookies-from-browser", args.cookies] if args.cookies else []))
         if not en_srt and not args.transcribe:
             sys.exit("没拉到英文字幕（人工/自动都没有）——加 --transcribe 用本地 Whisper 转录，或换有字幕的素材")
         start, stop = parse_ts_arg(args.start), parse_ts_arg(args.stop)
@@ -392,13 +489,21 @@ def main():
         # 转录读的是（可能已裁切的）成品媒体，时间轴天然对齐，无需 offset
         cues = transcribe_media(src_media, args.whisper_model, args.lang)
     else:
-        cues = parse_srt(srt_path)
-        if not cues:
-            sys.exit("字幕解析结果为空——检查 SRT 格式")
+        if args.dedupe_roll:
+            cues = split_word_sentences(dedupe_roll(srt_path))
+            if not cues:
+                sys.exit("滚动字幕清洗结果为空——确认这是 YouTube 滚动式自动字幕（SRT）")
+        else:
+            cues = parse_srt(srt_path)
+            if not cues:
+                sys.exit("字幕解析结果为空——检查 SRT 格式")
         if offset:
             cues = shift_cues(cues, offset)
     sents = merge_to_sentences(cues)
-    cn_cues = parse_srt(cn_path) if cn_path else []
+    if cn_path:
+        cn_cues = dedupe_roll(cn_path) if args.dedupe_roll else parse_srt(cn_path)
+    else:
+        cn_cues = []
     if cn_cues and offset:
         cn_cues = shift_cues(cn_cues, offset)
 
