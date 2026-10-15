@@ -20,7 +20,8 @@ def main():
     if "{{SHADOW_DATA_JSON}}" not in template:
         sys.exit("模板里没有 {{SHADOW_DATA_JSON}} 占位符，检查 template.html")
     n = 0
-    for f in sorted(d.glob("*-shadowing.html")):
+    # rglob：拆期组住在 <slug>/ 子文件夹里，也要刷到
+    for f in sorted(d.rglob("*-shadowing.html")):
         html = f.read_text("utf-8")
         m = re.search(r"const SHADOW_DATA = (\{.*?\});\n", html, re.S)
         if not m:

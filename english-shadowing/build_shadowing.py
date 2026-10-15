@@ -568,6 +568,9 @@ def main():
 
     outs = []
     if parts:
+        # 拆期组独立子文件夹：shadowing/<slug>/，多期文件集中存放不与别的课混排
+        group_dir = DEFAULT_OUT_DIR / slug
+        print(f"  · 拆期组子文件夹：{group_dir}/", file=sys.stderr)
         for i, (ms, me, part_sents) in enumerate(parts, 1):
             part_file = Path(tempfile.gettempdir()) / f"shadow-part-{slug}-{i}{src_media.suffix.lower()}"
             crop_media(src_media, ms, me, part_file)
@@ -575,7 +578,8 @@ def main():
             part_cn = [(c0 - ms, c1 - ms, t) for c0, c1, t in cn_cues
                        if overlap(c0, c1, ms, me) > 0.15]
             outs.append(write_lesson(f"{slug}-p{i}", f"{title}（{i}/{len(parts)}）",
-                                     part_file, part_sents_shift, part_cn))
+                                     part_file, part_sents_shift, part_cn,
+                                     out_path=group_dir / f"{slug}-p{i}-shadowing.html"))
             part_file.unlink(missing_ok=True)
     else:
         outs.append(write_lesson(slug, title, src_media, sents, cn_cues, args.out))

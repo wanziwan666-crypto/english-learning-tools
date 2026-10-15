@@ -13,7 +13,8 @@ read_when:
 把「媒体文件 + 字幕」变成一个自包含训练页，复刻影子跟读产品的核心训练环：
 **逐句听 → 单句循环/慢速/盲听 → 挖空·全句听写 → 录音跟读对比 → 点击收词 → 进度记忆**。
 
-输出：`~/Desktop/English Learning/shadowing/<slug>-shadowing.html`（媒体文件同目录放置，相对路径引用）。
+输出：`~/Desktop/English Learning/shadowing/<slug>-shadowing.html`（媒体文件同目录放置，相对路径引用）；
+拆期时整组进独立子文件夹 `shadowing/<slug>/<slug>-p1-shadowing.html …`，不与其他课混排。
 
 ## 前置条件
 
@@ -83,7 +84,8 @@ ffprobe -v error -show_entries format=duration -of csv=p=0 <file>
 - 用户说「拆」「分几节」等明确意愿时直接执行对应方案。
 
 **拆分执行**：加 `--split-each <秒>`（推荐）——脚本在**句边界**智能切（不会切在话中间），
-转录只跑一次、每期独立成页（`<slug>-p1/p2/…`，标题自动带「2/3」编号）。
+转录只跑一次、每期独立成页（`<slug>-p1/p2/…`，标题自动带「2/3」编号），
+整组存入独立子文件夹 `shadowing/<slug>/`。
 需要精确控制区间时才用 `--start/--stop` 逐段手工裁。
 
 ## Workflow
