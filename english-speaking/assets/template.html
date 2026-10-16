@@ -170,7 +170,8 @@ function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
 const recs = QUESTIONS.map(() => []);
 let recorder = null, recChunks = [], recQ = -1, recLabel = "录音", recT0 = 0;
 
-/* ---- 录音留存：blob 存 IndexedDB（按 LESSON_ID 隔离，各讲互不串）。
+/* ---- 录音留存：音频以 ArrayBuffer 存 IndexedDB（按 LESSON_ID 隔离，各讲互不串；
+   不直接存 Blob——WebKit/Safari 的 IDB 存 Blob 事务会失败）。
    与作答的 localStorage 同源同寿命——清浏览器站点数据会一起清掉，平时刷新/关浏览器都在。
    IndexedDB 不可用（异常/隐私模式）时静默退回会话内存，行为同旧版。---- */
 let recDb = null;
@@ -202,8 +203,9 @@ async function restoreRecs() {
   if (!recDb) return;
   const all = await dbRec("readonly", st => st.index("lesson").getAll(LESSON_ID));
   (all || []).forEach(row => {
-    if (!recs[row.qi] || !row.blob) return;   // 题库日后题数变动，越界的旧录音跳过不挂
-    recs[row.qi].push({ label: row.label, url: URL.createObjectURL(row.blob), at: new Date(row.at), dur: row.dur || 0, blob: row.blob, field: row.field || null, sttDone: !!row.sttDone, dbId: row.id });
+    const bl = row.blob || new Blob([row.ab], { type: row.mime || "audio/webm" });   // blob 字段兼容早期 Blob 行
+    if (!recs[row.qi] || !(row.blob || row.ab)) return;   // 题库日后题数变动，越界的旧录音跳过不挂
+    recs[row.qi].push({ label: row.label, url: URL.createObjectURL(bl), at: new Date(row.at), dur: row.dur || 0, blob: bl, field: row.field || null, sttDone: !!row.sttDone, dbId: row.id });
   });
   render();   // 录音已就位，重挂当前题的录音区
 }
@@ -223,7 +225,8 @@ async function startRec(qi, label, sess) {
       recs[qi].push(ent);
       recorder = null;
       refreshRecs(qi);
-      dbRec("readwrite", st => st.add({ lesson: LESSON_ID, qi: qi, label: ent.label, at: ent.at.getTime(), dur: ent.dur, field: ent.field, blob: blob })).then(id => { if (id != null) ent.dbId = id; });
+      // 存 ArrayBuffer 而非 Blob：WebKit（Safari）往 IndexedDB 塞 Blob 会整事务失败，ArrayBuffer 各引擎都稳；恢复时按 mime 重建 Blob
+      blob.arrayBuffer().then(ab => dbRec("readwrite", st => st.add({ lesson: LESSON_ID, qi: qi, label: ent.label, at: ent.at.getTime(), dur: ent.dur, field: ent.field, ab: ab, mime: blob.type }))).then(id => { if (id != null) ent.dbId = id; });
       // 浏览器识别整段没出过一个字（服务连不上等）：录音落地即自动本地转写兜底
       if (sess && !sess.fin.trim() && blob.size > 2000) localStt({ qi: qi, field: sess.field, blob: blob, ent: recs[qi][recs[qi].length - 1], replaceBase: sess.base });
     };
