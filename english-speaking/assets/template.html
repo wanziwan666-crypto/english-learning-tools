@@ -166,9 +166,47 @@ function load() {
 }
 function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
 
-/* ===== 录音 + 语音识别（录音仅会话内存；识别用浏览器原生 STT，Chrome/Safari 支持）===== */
+/* ===== 录音 + 语音识别（录音落 IndexedDB 永久留存，刷新/重开页面自动找回；识别用浏览器原生 STT，Chrome/Safari 支持）===== */
 const recs = QUESTIONS.map(() => []);
 let recorder = null, recChunks = [], recQ = -1, recLabel = "录音", recT0 = 0;
+
+/* ---- 录音留存：blob 存 IndexedDB（按 LESSON_ID 隔离，各讲互不串）。
+   与作答的 localStorage 同源同寿命——清浏览器站点数据会一起清掉，平时刷新/关浏览器都在。
+   IndexedDB 不可用（异常/隐私模式）时静默退回会话内存，行为同旧版。---- */
+let recDb = null;
+function openRecDb() {
+  return new Promise(res => {
+    if (!window.indexedDB) return res(null);
+    let rq;
+    try { rq = indexedDB.open("ielts-speaking-recs", 1); } catch (e) { return res(null); }
+    rq.onupgradeneeded = () => {
+      if (!rq.result.objectStoreNames.contains("recs"))
+        rq.result.createObjectStore("recs", { keyPath: "id", autoIncrement: true }).createIndex("lesson", "lesson");
+    };
+    rq.onsuccess = () => res(rq.result);
+    rq.onerror = () => res(null);
+  });
+}
+function dbRec(mode, fn) {
+  return new Promise(res => {
+    if (!recDb) return res(null);
+    try {
+      const tx = recDb.transaction("recs", mode), rq = fn(tx.objectStore("recs"));
+      tx.oncomplete = () => res(rq ? rq.result : null);
+      tx.onerror = tx.onabort = () => res(null);
+    } catch (e) { res(null); }
+  });
+}
+async function restoreRecs() {
+  recDb = await openRecDb();
+  if (!recDb) return;
+  const all = await dbRec("readonly", st => st.index("lesson").getAll(LESSON_ID));
+  (all || []).forEach(row => {
+    if (!recs[row.qi] || !row.blob) return;   // 题库日后题数变动，越界的旧录音跳过不挂
+    recs[row.qi].push({ label: row.label, url: URL.createObjectURL(row.blob), at: new Date(row.at), dur: row.dur || 0, blob: row.blob, field: row.field || null, sttDone: !!row.sttDone, dbId: row.id });
+  });
+  render();   // 录音已就位，重挂当前题的录音区
+}
 
 async function startRec(qi, label, sess) {
   if (recorder) return;
@@ -181,9 +219,11 @@ async function startRec(qi, label, sess) {
     recorder.onstop = () => {
       stream.getTracks().forEach(t => t.stop());
       const blob = new Blob(recChunks, { type: recorder.mimeType || "audio/webm" });
-      recs[qi].push({ label: recLabel + " " + (recs[qi].length + 1), url: URL.createObjectURL(blob), at: new Date(), dur: Math.max(1, Math.round((Date.now() - recT0) / 1000)), blob: blob, field: sess ? sess.field : null });
+      const ent = { label: recLabel + " " + (recs[qi].length + 1), url: URL.createObjectURL(blob), at: new Date(), dur: Math.max(1, Math.round((Date.now() - recT0) / 1000)), blob: blob, field: sess ? sess.field : null };
+      recs[qi].push(ent);
       recorder = null;
       refreshRecs(qi);
+      dbRec("readwrite", st => st.add({ lesson: LESSON_ID, qi: qi, label: ent.label, at: ent.at.getTime(), dur: ent.dur, field: ent.field, blob: blob })).then(id => { if (id != null) ent.dbId = id; });
       // 浏览器识别整段没出过一个字（服务连不上等）：录音落地即自动本地转写兜底
       if (sess && !sess.fin.trim() && blob.size > 2000) localStt({ qi: qi, field: sess.field, blob: blob, ent: recs[qi][recs[qi].length - 1], replaceBase: sess.base });
     };
@@ -329,7 +369,7 @@ async function liveWindow(sess) {
 
 /* ---- 本地转写兜底：浏览器识别拿不到文字时，把录音交给信箱 /stt（本机 faster-whisper，不依赖网络）---- */
 function localStt(item) {
-  if (!item || !item.blob) { toast("这段录音已不可用（刷新会丢），重新录一段再试"); return; }
+  if (!item || !item.blob) { toast("这段录音已不可用，重新录一段再试"); return; }
   toast("正在本地转写录音…（几秒到几十秒，别关页面）");
   fetch(MB + "/stt", { method: "POST", headers: { "Content-Type": item.blob.type || "audio/webm" }, body: item.blob })
     .then(r => r.json()).then(j => {
@@ -342,7 +382,10 @@ function localStt(item) {
       const ta = document.getElementById(item.field + "-" + item.qi);
       if (ta) ta.value = state.q[item.qi][item.field];
       wc(item.qi);
-      if (item.ent) { item.ent.sttDone = true; refreshRecs(item.qi); }   // 转过一次收起按钮，防重复追加
+      if (item.ent) {
+        item.ent.sttDone = true; refreshRecs(item.qi);   // 转过一次收起按钮，防重复追加
+        if (item.ent.dbId != null) dbRec("readwrite", st => { const g = st.get(item.ent.dbId); g.onsuccess = () => { if (g.result) { g.result.sttDone = true; st.put(g.result); } }; });
+      }
       toast("本地转写完成 ✓ 已填入");
     }).catch(() => toast("本地转写失败：信箱离线或未装 faster-whisper，回对话说一声"));
 }
@@ -350,7 +393,7 @@ function recStt(qi, i) { const r = recs[qi] && recs[qi][i]; if (r && r.field && 
 
 function recsHtml(qi) {
   if (!recs[qi].length) return "";
-  return '<div class="rec-sec reveal" style="margin-top:14px"><b style="font-size:13px">本题录音（回放自查，刷新丢失）</b><div class="rec-list">' +
+  return '<div class="rec-sec reveal" style="margin-top:14px"><b style="font-size:13px">本题录音（回放自查' + (recDb ? "，已留存本机" : "，刷新丢失") + '）</b><div class="rec-list">' +
     recs[qi].map((r, i) =>
       '<div class="rec-item"><b>' + esc(r.label) + '</b>' + (r.dur ? '<span class="rdur">' + mmss(r.dur) + '</span>' : '') + '<audio controls src="' + r.url + '" onloadedmetadata="fixRecDur(this)"></audio>' + (r.field && !r.sttDone ? '<button onclick="recStt(' + qi + ',' + i + ')">🔍 本地转文字</button>' : (r.sttDone ? '<span class="wc">✓ 已转文字</span>' : '')) + '<button class="del" onclick="delRec(' + qi + ',' + i + ')">删除</button></div>'
     ).join("") + "</div></div>";
@@ -367,7 +410,11 @@ function refreshRecs(qi) {
   const box = document.getElementById("recbox-" + qi);
   if (box) box.innerHTML = recsHtml(qi);
 }
-function delRec(qi, i) { recs[qi].splice(i, 1); refreshRecs(qi); }
+function delRec(qi, i) {
+  const r = recs[qi][i];
+  if (r && r.dbId != null) dbRec("readwrite", st => st.delete(r.dbId));
+  recs[qi].splice(i, 1); refreshRecs(qi);
+}
 
 /* 纯录音（跟读等，不转文字） */
 async function toggleRec(qi) {
@@ -581,6 +628,7 @@ function toast(msg) {
 
 document.getElementById("submeta").textContent = COURSE_LINE + " · 第 " + LESSON_NO + "/" + TOTAL_LESSONS + " 讲 · " + QUESTIONS.length + " 题 · 两轮打磨：第一遍作答 → AI 批改 → 按批改练第二遍 → AI 对比批改 → Band 7 目标样例";
 render();
+restoreRecs();   // 找回本讲历史录音（IndexedDB），到位后重渲染挂上录音区
 /* 信箱探测：在线则切换 AI 直连模式，并补收错过的批改 */
 fetch(MB + "/ping").then(r => r.json()).then(() => {
   mbOnline = true; render();

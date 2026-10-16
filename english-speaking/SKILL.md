@@ -44,6 +44,7 @@ description: 雅思口语题库练习页生成 + 本地信箱批改闭环。当�
    - `__QUESTIONS_JSON__`：题库数组（schema 见下），用 `json.dumps(questions, ensure_ascii=False, indent=2).replace("</", "<\\/")` 生成后嵌入（`</` 转义防 `</script>` 提前闭合）
 3. 确保信箱服务在跑（见下），`open "http://127.0.0.1:8765/NN-slug.html"` 交付——**别用 file:// 直开**：Chrome 对 file:// 源不记忆麦克风授权（每次录音都弹窗），对 127.0.0.1 记一次永久生效。页面 head 里有升级脚本，用户 file:// 双击也会自动跳到同源 http 并带走 localStorage 进度
 4. **更新 `speaking/index.html` 总目录**：把该讲从灰色待生成卡片换成 `<a class="lesson" href="NN-slug.html">`。目录页是用户的日常入口（不经过对话），漏更新 = 用户以为这讲不存在。新增讲次卡片也照此维护
+5. **模板迭代刷新存量页**：改了 `assets/template.html` 后，跑 `python3 assets/rebuild_pages.py [目录]`（默认 `~/Desktop/English Learning/speaking`）——从每页正则抠出 QUESTIONS JSON 与本讲配置代入新模板就地重写（原文直传零漂移，顺带校验 JSON 与 LESSON_ID 唯一性），不用逐页手工重生成。信箱 `Cache-Control: no-store`，刷新即生效；localStorage 进度键不变，用户作答不受影响
 
 ### QUESTIONS schema
 
@@ -102,6 +103,6 @@ print(urllib.request.urlopen(req, timeout=5).read().decode())  # {"ok": true, "f
 ## 四、已知边界（用户问起时答）
 
 - 语音识别（STT）用浏览器原生 API：Chrome 走 Google 服务需联网；Safari 14.1+ 可用。都不支持时按钮会提示，退化为打字。识别会话由页内 `dict` 会话对象管理：浏览器自己断流（静音超时/网络抖动/continuous 上限）会换新实例自动续听、不打断作答，长静音约 8 轮后放弃并提示；点一次按钮=开始、再点=结束，启动等待期间再点=取消；识别服务连不上时（Chrome 需能访问 Google，连不上会话会僵死：start 后零事件、stop 也无响应）由 9 秒无事件看门狗识别——**录音通常是好的，此时不掐录音**：拆掉僵死识别实例、按钮转「■ 录音中…（自动转文字）」继续录，且**边说边转**：听写录音按 4s 切片（MediaRecorder timeslice，最终 blob=全部切片拼接、与整录等价），纯录音模式下每片拼上 webm 初始化段（首个 Cluster ID 0x1F43B675 前的字节）成独立可解码小段，增量 POST `/stt` 转写追加显示——文字约 5-6 秒延迟逐段出现（本地 faster-whisper，用户网络永远连不上 Google 也照常出字；Safari mp4 分片拆不出初始化段则自动放弃边说边转、只留收尾整段）；说完点停后整段重转一遍【替换】这些临时文字（replaceBase，非叠加），整段转写才是最终版；录音条目另有手动「🔍 本地转文字」按钮，转过一次收起防重复追加。自动转写只在整段一个字都没出过时触发（有字说明浏览器识别正常），且要求录音 >2KB（双击取消产生的空壳录音不触发）。点停止 2 秒无响应同样强制收摊——按钮不会卡死
-- 录音仅会话内存，刷新丢失（答案文本和批改持久化在 localStorage）
+- 录音落 IndexedDB（库名 `ielts-speaking-recs`，按 LESSON_ID 索引隔离各讲）永久留存：刷新/重开页面自动找回，删除也持久生效；「已转文字」标记随条目落库。与作答的 localStorage 同源同寿命——清浏览器站点数据会一起清掉。IndexedDB 不可用时静默退回会话内存（标题会如实标「刷新丢失」）。测试注意：线上源（8765）页面加载时信箱会回放真实批改触发重渲染，自动化点按钮前先等几秒让渲染落定，且临时 profile 用 `grant_permissions(['microphone'])` 预授麦克风（真 Chrome 的 fake-UI 授权有启动竞态）
 - 练习页日常走 `http://127.0.0.1:8765/` 同源打开（麦克风授权 Chrome 只记这一次）。file:// 双击仍可用——页面 head 的升级脚本会在信箱在线时自动跳到 http，跳转把 file:// 侧 localStorage 的作答进度经 `#migrate=` 带过去、仅补缺不覆盖；信箱离线时留在 file:// 原样可练，只是 Chrome 对 file:// 每次录音都重新弹授权窗（Chrome 的既定行为，无解，别再找设置项）。信箱跨域由 CORS `*` 处理，并带 Origin 校验：curl（无 Origin）、file:// 页面（`Origin: null`）与同源 http 页面放行，浏览器里其他网页一律 403——仅监听回环挡不住它们
 - 批改只有一种获取方式：信箱直连。页面离线 = 异常状态（红色指引 + 重试按钮），不要建议手动复制粘贴——用户已明确否决手动模式
